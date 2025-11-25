@@ -1,0 +1,11 @@
+pandas
+numpy
+torch
+transformers
+scipy
+langdetect
+deep-translator
+matplotlib
+seaborn
+openpyxl
+tabulate
