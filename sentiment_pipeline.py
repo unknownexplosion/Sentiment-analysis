@@ -245,10 +245,27 @@ def analyze_sentiment(df):
                 results = sentiment_pipeline(batch, truncation=True, max_length=512)
                 
                 for res in results:
-                    # Label is like '1 star', '5 stars'
-                    star = int(res['label'].split()[0])
-                    scores.append(star)
-                    labels.append(get_sentiment_label(star))
+                    label_str = res['label']
+                    
+                    # Handle "N stars" format (BERT base)
+                    if label_str[0].isdigit():
+                        star = int(label_str.split()[0])
+                        scores.append(star)
+                        labels.append(get_sentiment_label(star))
+                    
+                    # Handle "Positive/Negative" format (Fine-Tuned DeBERTa)
+                    else:
+                        # Map text labels to approximate star scores for compatibility
+                        lower_label = label_str.lower()
+                        if 'positive' in lower_label:
+                            scores.append(5)
+                            labels.append('Positive')
+                        elif 'negative' in lower_label:
+                            scores.append(1)
+                            labels.append('Negative')
+                        else:
+                            scores.append(3)
+                            labels.append('Neutral')
                     
         except Exception as e:
             logger.error(f"Error in transformers pipeline: {e}")
@@ -396,50 +413,93 @@ def aggregate_model_stats(df):
     return pd.DataFrame(stats_list)
 
 def generate_feedback_report(stats_df):
-    """Generates the feedback report DataFrame."""
-    logger.info("Generating feedback report...")
+    """Generates the feedback report DataFrame strictly following the 6.1-6.4 format."""
+    logger.info("Generating structured Manufacturer Feedback Report...")
     
     feedback_list = []
     
     for _, row in stats_df.iterrows():
         model = row['model']
+        pos_pct = row['pct_positive']
+        neg_pct = row['pct_negative']
+        neu_pct = row['pct_neutral']
+        vol = row['valid_cleaned_reviews']
         
-        # Summary
-        sentiment_desc = "generally positive" if row['pct_positive'] > row['pct_negative'] else "mixed or negative"
-        summary = (f"The sentiment for {model} is {sentiment_desc} with {row['pct_positive']}% positive reviews. "
-                   f"Based on {row['valid_cleaned_reviews']} valid reviews, the average sentiment score is {row['average_sentiment_score']}/5.")
+        # 6.1 Summary
+        vol_desc = "High review volume with diverse opinions" if vol > 50 else "Low to moderate volume—insights may be limited"
+        sentiment_tone = "overwhelmingly positive" if pos_pct > 75 else "generally positive" if pos_pct > 50 else "mixed" if pos_pct > 30 else "largely negative"
         
-        # Strengths & Weaknesses
-        strengths = row['top_6_positive_keywords'] if row['top_6_positive_keywords'] else "No clear strengths identified."
-        weaknesses = row['top_6_negative_keywords'] if row['top_6_negative_keywords'] else "No clear weaknesses identified."
+        summary_section = (
+            f"6.1 Summary\n"
+            f"The overall sentiment for {model} is {sentiment_tone}. "
+            f"Analysis shows a breakdown of {pos_pct}% Positive, {neg_pct}% Negative, and {neu_pct}% Neutral sentiment. "
+            f"{vol_desc}."
+        )
         
-        # Recommendations (Template based)
+        # 6.2 Strengths
+        pos_kw = row['top_6_positive_keywords']
+        strengths_desc = f"Customers frequently praised key aspects such as: {pos_kw}." if pos_kw else "No specific praise themes detected."
+        
+        strengths_section = (
+            f"6.2 Strengths\n"
+            f"{strengths_desc}"
+        )
+        
+        # 6.3 Weaknesses
+        neg_kw = row['top_6_negative_keywords']
+        weaknesses_desc = f"recurring complaints focused on: {neg_kw}." if neg_kw else "No specific complaint themes detected."
+        
+        weaknesses_section = (
+            f"6.3 Weaknesses\n"
+            f"Critical areas for improvement include {weaknesses_desc}"
+        )
+        
+        # 6.4 Actionable Recommendations
         recs = []
-        if row['pct_negative'] > 20:
-            recs.append("Address common complaints found in negative reviews immediately.")
-        if "battery" in weaknesses:
-            recs.append("Investigate battery life optimization or quality control.")
-        if "screen" in weaknesses or "display" in weaknesses:
-            recs.append("Review display panel quality and durability.")
-        if "price" in weaknesses:
-            recs.append("Consider reviewing pricing strategy or adding more value.")
-        if "service" in weaknesses:
-            recs.append("Improve customer service and support channels.")
+        
+        # Dynamic advice based on keywords in weaknesses
+        w_text = str(neg_kw).lower()
+        if "battery" in w_text or "drain" in w_text:
+            recs.append("Technical: Optimize background process management to extend battery life.")
+        if "screen" in w_text or "display" in w_text or "crack" in w_text:
+            recs.append("Quality Control: Investigate display panel durability and consider stronger protective glass.")
+        if "price" in w_text or "cost" in w_text or "expensive" in w_text:
+            recs.append("Marketing: Emphasize long-term value and premium build quality to justify pricing.")
+        if "camera" in w_text or "photo" in w_text:
+            recs.append("Product: Refine image processing algorithms for better low-light performance.")
+        if "delivery" in w_text or "shipping" in w_text:
+            recs.append("Logistics: Review courier partners to reduce shipping delays and damage.")
+        if "service" in w_text or "support" in w_text:
+            recs.append("Trust: Expand customer support availability and reduce response times.")
             
-        # Generic fallback recommendations
-        if len(recs) < 3:
-            recs.append("Engage with customers on social media to build trust.")
-            recs.append("Highlight top-rated features in marketing campaigns.")
-            recs.append("Incentivize happy customers to leave detailed reviews.")
-            
-        recommendations = "; ".join(recs[:3]) # Take top 3
+        # Fillers if we don't have enough specific ones
+        while len(recs) < 3:
+            defaults = [
+                "Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.",
+                "Engagement: packaging enhancements to create a more premium unboxing experience.",
+                "Trust: Respond publicly to constructive negative reviews to show brand accountability."
+            ]
+            for d in defaults:
+                if d not in recs:
+                    recs.append(d)
+                    if len(recs) >= 3: break
+        
+        rec_list_str = "\n".join([f"- {r}" for r in recs])
+        recommendations_section = (
+            f"6.4 Actionable Recommendations\n"
+            f"{rec_list_str}"
+        )
+        
+        # Combine full text for the CSV report
+        full_report = f"{summary_section}\n\n{strengths_section}\n\n{weaknesses_section}\n\n{recommendations_section}"
         
         feedback_list.append({
             'model': model,
-            'summary': summary,
-            'strengths': strengths,
-            'weaknesses': weaknesses,
-            'recommendations': recommendations
+            'summary': summary_section, 
+            'strengths': strengths_section,
+            'weaknesses': weaknesses_section,
+            'recommendations': recommendations_section,
+            'full_report_text': full_report
         })
         
     return pd.DataFrame(feedback_list)
@@ -535,10 +595,8 @@ def main():
         f.write("# Manufacturer Feedback Report\n\n")
         for _, row in feedback_df.iterrows():
             f.write(f"## Model: {row['model']}\n")
-            f.write(f"**Summary**: {row['summary']}\n\n")
-            f.write(f"**Strengths**: {row['strengths']}\n\n")
-            f.write(f"**Weaknesses**: {row['weaknesses']}\n\n")
-            f.write(f"**Recommendations**: {row['recommendations']}\n\n")
+            f.write(row['full_report_text'])
+            f.write("\n\n")
             f.write("---\n\n")
             
     # 10. Plots

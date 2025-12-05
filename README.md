@@ -82,14 +82,22 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_sm
 ```
 
-### 2. Run the Analysis Pipeline
-Process raw data and generate the ABSA dataset.
+## Run Full System
+
+### 1. Run the Pipeline
+Extract data, process sentiment, and generate reports.
 ```bash
 python sentiment_pipeline.py
 ```
+*   **Output:** `outputs/` folder containing CSV summaries and PNG charts.
 
-### 3. Launch Dashboard
-View the insights in the interactive web app.
+### 2. Auto-Pilot (Pipeline + Training)
+Run the entire end-to-end system (Generation + Fine-Tuning) in one go:
+```bash
+python run_full_system.py
+```
+
+### 3. Train the Model (Manual)
 ```bash
 streamlit run app.py
 ```

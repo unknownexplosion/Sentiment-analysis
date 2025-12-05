@@ -1,90 +1,138 @@
 # Manufacturer Feedback Report
 
 ## Model: Apple MacBook AIR Apple M2
-**Summary**: The sentiment for Apple MacBook AIR Apple M2 is generally positive with 88.24% positive reviews. Based on 102 valid reviews, the average sentiment score is 4.51/5.
+6.1 Summary
+The overall sentiment for Apple MacBook AIR Apple M2 is overwhelmingly positive. Analysis shows a breakdown of 85.29% Positive, 5.88% Negative, and 6.86% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: macbook, battery, performance, first, quality, apple
+6.2 Strengths
+Customers frequently praised key aspects such as: macbook, battery, performance, first, apple, windows.
 
-**Weaknesses**: windows, apple, usage, laptops, once, your
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: her, first, windows, apple, usage, laptops.
 
-**Recommendations**: Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.; Incentivize happy customers to leave detailed reviews.
+6.4 Actionable Recommendations
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
+- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Apple MacBook AIR Apple M1
-**Summary**: The sentiment for Apple MacBook AIR Apple M1 is generally positive with 73.88% positive reviews. Based on 1700 valid reviews, the average sentiment score is 4.07/5.
+6.1 Summary
+The overall sentiment for Apple MacBook AIR Apple M1 is generally positive. Analysis shows a breakdown of 72.53% Positive, 14.24% Negative, and 10.24% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: macbook, apple, love, battery, air, computer
+6.2 Strengths
+Customers frequently praised key aspects such as: macbook, apple, love, battery, air, computer.
 
-**Weaknesses**: apple, macbook, they, computer, screen, new
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: apple, macbook, computer, screen, they, new.
 
-**Recommendations**: Review display panel quality and durability.; Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.
+6.4 Actionable Recommendations
+- Quality Control: Investigate display panel durability and consider stronger protective glass.
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
 
 ---
 
 ## Model: Apple iPhone XR (64GB) - Black
-**Summary**: The sentiment for Apple iPhone XR (64GB) - Black is generally positive with 39.8% positive reviews. Based on 5010 valid reviews, the average sentiment score is 3.94/5.
+6.1 Summary
+The overall sentiment for Apple iPhone XR (64GB) - Black is mixed. Analysis shows a breakdown of 40.18% Positive, 11.7% Negative, and 3.89% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: iphone, apple, awesome, battery, price, excellent
+6.2 Strengths
+Customers frequently praised key aspects such as: iphone, apple, awesome, battery, price, excellent.
 
-**Weaknesses**: iphone, amazon, apple, bad, working, battery
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: iphone, amazon, apple, bad, working, worst.
 
-**Recommendations**: Investigate battery life optimization or quality control.; Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.
+6.4 Actionable Recommendations
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
+- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Apple iPhone 14
-**Summary**: The sentiment for Apple iPhone 14 is generally positive with 86.44% positive reviews. Based on 531 valid reviews, the average sentiment score is 4.57/5.
+6.1 Summary
+The overall sentiment for Apple iPhone 14 is overwhelmingly positive. Analysis shows a breakdown of 86.25% Positive, 3.95% Negative, and 6.78% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: performance, camera, excellent, quality, smooth, experience
+6.2 Strengths
+Customers frequently praised key aspects such as: performance, camera, excellent, quality, smooth, overall.
 
-**Weaknesses**: battery, service, performance, health, within, slightly
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: battery, during, service, performance, health, within.
 
-**Recommendations**: Investigate battery life optimization or quality control.; Improve customer service and support channels.; Engage with customers on social media to build trust.
+6.4 Actionable Recommendations
+- Technical: Optimize background process management to extend battery life.
+- Trust: Expand customer support availability and reduce response times.
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
 
 ---
 
 ## Model: iphone15_pro
-**Summary**: The sentiment for iphone15_pro is generally positive with 64.52% positive reviews. Based on 93 valid reviews, the average sentiment score is 3.89/5.
+6.1 Summary
+The overall sentiment for iphone15_pro is generally positive. Analysis shows a breakdown of 69.89% Positive, 10.75% Negative, and 15.05% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: iphone, battery, camera, performance, display, quality
+6.2 Strengths
+Customers frequently praised key aspects such as: iphone, camera, battery, performance, quality, display.
 
-**Weaknesses**: iphone, battery, camera, ios, issues, quality
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: iphone, bought, within, same, received, amazon.
 
-**Recommendations**: Investigate battery life optimization or quality control.; Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.
+6.4 Actionable Recommendations
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
+- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: iphone11
-**Summary**: The sentiment for iphone11 is generally positive with 50.23% positive reviews. Based on 9967 valid reviews, the average sentiment score is 4.21/5.
+6.1 Summary
+The overall sentiment for iphone11 is generally positive. Analysis shows a breakdown of 51.32% Positive, 6.88% Negative, and 6.5% Neutral sentiment. High review volume with diverse opinions.
 
-**Strengths**: iphone, read, camera, awesome, nice, battery
+6.2 Strengths
+Customers frequently praised key aspects such as: iphone, read, camera, awesome, nice, battery.
 
-**Weaknesses**: iphone, battery, camera, apple, bad, dont
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: battery, camera, iphone, bad, flipkart, dont.
 
-**Recommendations**: Investigate battery life optimization or quality control.; Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.
+6.4 Actionable Recommendations
+- Technical: Optimize background process management to extend battery life.
+- Product: Refine image processing algorithms for better low-light performance.
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
 
 ---
 
 ## Model: Macbook M3 Pro
-**Summary**: The sentiment for Macbook M3 Pro is generally positive with 92.5% positive reviews. Based on 40 valid reviews, the average sentiment score is 4.72/5.
+6.1 Summary
+The overall sentiment for Macbook M3 Pro is overwhelmingly positive. Analysis shows a breakdown of 95.0% Positive, 0.0% Negative, and 5.0% Neutral sentiment. Low to moderate volume—insights may be limited.
 
-**Strengths**: without, excellent, perfect, performance, work, everything
+6.2 Strengths
+Customers frequently praised key aspects such as: without, excellent, perfect, performance, work, everything.
 
-**Weaknesses**: ssd, speeds, blazing, fast, opening, large
+6.3 Weaknesses
+Critical areas for improvement include No specific complaint themes detected.
 
-**Recommendations**: Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.; Incentivize happy customers to leave detailed reviews.
+6.4 Actionable Recommendations
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
+- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Macbook M4 Pro
-**Summary**: The sentiment for Macbook M4 Pro is generally positive with 41.03% positive reviews. Based on 39 valid reviews, the average sentiment score is 3.41/5.
+6.1 Summary
+The overall sentiment for Macbook M4 Pro is mixed. Analysis shows a breakdown of 43.59% Positive, 25.64% Negative, and 30.77% Neutral sentiment. Low to moderate volume—insights may be limited.
 
-**Strengths**: pro, work, machine, video, battery, display
+6.2 Strengths
+Customers frequently praised key aspects such as: pro, work, still, without, machine, video.
 
-**Weaknesses**: base, model, expensive, ram, pro, first
+6.3 Weaknesses
+Critical areas for improvement include recurring complaints focused on: base, model, ram, pro, first, unit.
 
-**Recommendations**: Address common complaints found in negative reviews immediately.; Engage with customers on social media to build trust.; Highlight top-rated features in marketing campaigns.
+6.4 Actionable Recommendations
+- Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
+- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 

@@ -1,9 +1,9 @@
 model,total_reviews,valid_cleaned_reviews,pct_positive,pct_negative,pct_neutral,average_sentiment_score,top_6_positive_keywords,top_6_negative_keywords
-Apple MacBook AIR Apple M2,102,102,88.24,4.9,4.9,4.51,"macbook, battery, performance, first, quality, apple","windows, apple, usage, laptops, once, your"
-Apple MacBook AIR Apple M1,1700,1700,73.88,17.53,5.65,4.07,"macbook, apple, love, battery, air, computer","apple, macbook, they, computer, screen, new"
-Apple iPhone XR (64GB) - Black,5010,5010,39.8,11.34,4.63,3.94,"iphone, apple, awesome, battery, price, excellent","iphone, amazon, apple, bad, working, battery"
-Apple iPhone 14,531,531,86.44,3.58,6.97,4.57,"performance, camera, excellent, quality, smooth, experience","battery, service, performance, health, within, slightly"
-iphone15_pro,93,93,64.52,17.2,13.98,3.89,"iphone, battery, camera, performance, display, quality","iphone, battery, camera, ios, issues, quality"
-iphone11,9967,9967,50.23,7.79,6.69,4.21,"iphone, read, camera, awesome, nice, battery","iphone, battery, camera, apple, bad, dont"
-Macbook M3 Pro,40,40,92.5,7.5,0.0,4.72,"without, excellent, perfect, performance, work, everything","ssd, speeds, blazing, fast, opening, large"
-Macbook M4 Pro,39,39,41.03,25.64,33.33,3.41,"pro, work, machine, video, battery, display","base, model, expensive, ram, pro, first"
+Apple MacBook AIR Apple M2,102,102,85.29,5.88,6.86,4.62,"macbook, battery, performance, first, apple, windows","her, first, windows, apple, usage, laptops"
+Apple MacBook AIR Apple M1,1700,1700,72.53,14.24,10.24,4.2,"macbook, apple, love, battery, air, computer","apple, macbook, computer, screen, they, new"
+Apple iPhone XR (64GB) - Black,5010,5010,40.18,11.7,3.89,4.02,"iphone, apple, awesome, battery, price, excellent","iphone, amazon, apple, bad, working, worst"
+Apple iPhone 14,531,531,86.25,3.95,6.78,4.7,"performance, camera, excellent, quality, smooth, overall","battery, during, service, performance, health, within"
+iphone15_pro,93,93,69.89,10.75,15.05,4.24,"iphone, camera, battery, performance, quality, display","iphone, bought, within, same, received, amazon"
+iphone11,9967,9967,51.32,6.88,6.5,4.37,"iphone, read, camera, awesome, nice, battery","battery, camera, iphone, bad, flipkart, dont"
+Macbook M3 Pro,40,40,95.0,0.0,5.0,4.9,"without, excellent, perfect, performance, work, everything",
+Macbook M4 Pro,39,39,43.59,25.64,30.77,3.36,"pro, work, still, without, machine, video","base, model, ram, pro, first, unit"
