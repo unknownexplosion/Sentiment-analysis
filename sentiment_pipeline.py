@@ -4,7 +4,11 @@ import re
 import os
 import sys
 import logging
+import json
 from collections import Counter
+import matplotlib.pyplot as plt
+import seaborn as sns
+from tqdm import tqdm
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -27,10 +31,26 @@ except ImportError:
     logger.warning("Transformers not found. Sentiment analysis will use mock/fallback.")
     TRANSFORMERS_AVAILABLE = False
 
+# Check for Spacy
+try:
+    import spacy
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except OSError:
+        logger.info("Downloading en_core_web_sm...")
+        from spacy.cli import download
+        download("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm")
+    SPACY_AVAILABLE = True
+except ImportError:
+    logger.warning("Spacy not found. ABSA extraction will be skipped.")
+    SPACY_AVAILABLE = False
+
 # Constants
-FILLER_WORDS = {'lol', 'xd', 'lmao', 'plz', 'ok', 'k'}
+FILLER_WORDS = {'lol', 'ok', 'k', 'plz', 'xd'}
 MIN_ALPHA_CHARS = 3
 MIN_ALPHANUM_RATIO = 0.3
+ASPECT_LIST = ['battery', 'performance', 'display', 'camera', 'build quality', 'price', 'software', 'sound', 'overheating', 'durability']
 
 def load_data(filepath):
     """Loads the dataset and keeps only relevant columns."""
@@ -142,9 +162,8 @@ def translate_and_clean(df):
         return text
 
     # Apply translation only to non-NaN rows
-    # Note: This can be slow for large datasets.
-    # For optimization, we could filter first.
-    df['translated_review'] = df['cleaned_review'].apply(lambda x: process_row({'cleaned_review': x}))
+    tqdm.pandas(desc="Translating & Cleaning")
+    df['translated_review'] = df['cleaned_review'].progress_apply(lambda x: process_row({'cleaned_review': x}))
     
     # Re-clean translated text
     df['translated_review'] = df['translated_review'].apply(clean_text)
@@ -154,7 +173,6 @@ def translate_and_clean(df):
     df.loc[mask_meaningless, 'translated_review'] = np.nan
     
     # Use translated review as the final 'cleaned_review' for sentiment analysis
-    # If translation failed or wasn't needed, it holds the original cleaned text
     df['final_review'] = df['translated_review']
     
     return df
@@ -178,9 +196,6 @@ def handle_duplicates(df):
 
 def get_sentiment_label(score):
     """Maps 1-5 stars to Positive, Negative, Neutral."""
-    # 1, 2 -> Negative
-    # 3 -> Neutral
-    # 4, 5 -> Positive
     if score <= 2:
         return 'Negative'
     elif score == 3:
@@ -200,10 +215,11 @@ def analyze_sentiment(df):
         logger.warning("No valid reviews to analyze.")
         df['sentiment_score'] = np.nan
         df['sentiment_label'] = np.nan
-        return df
+        return df, None
 
     scores = []
     labels = []
+    sentiment_pipeline = None
 
     if TRANSFORMERS_AVAILABLE:
         try:
@@ -214,7 +230,7 @@ def analyze_sentiment(df):
             batch_size = 32
             logger.info(f"Processing {len(valid_reviews)} reviews in batches of {batch_size}...")
             
-            for i in range(0, len(valid_reviews), batch_size):
+            for i in tqdm(range(0, len(valid_reviews), batch_size), desc="Sentiment Analysis"):
                 batch = valid_reviews[i:i+batch_size]
                 # Truncate to 512 tokens to avoid errors
                 results = sentiment_pipeline(batch, truncation=True, max_length=512)
@@ -232,7 +248,6 @@ def analyze_sentiment(df):
             labels = ['Neutral'] * len(valid_reviews)
     else:
         logger.warning("Using MOCK sentiment analysis (Random) because transformers is missing.")
-        # Mock logic for testing
         import random
         for _ in valid_reviews:
             s = random.randint(1, 5)
@@ -243,7 +258,64 @@ def analyze_sentiment(df):
     df.loc[valid_mask, 'sentiment_score'] = scores
     df.loc[valid_mask, 'sentiment_label'] = labels
     
-    return df
+    return df, sentiment_pipeline
+
+def generate_absa_dataset(df, sentiment_pipeline):
+    """Generates ABSA dataset for DeBERTa fine-tuning."""
+    if not SPACY_AVAILABLE:
+        logger.warning("Spacy not available, skipping ABSA dataset generation.")
+        return pd.DataFrame()
+
+    logger.info("Generating ABSA dataset...")
+    absa_data = []
+    
+    # Iterate over valid reviews
+    valid_df = df[df['final_review'].notna() & (df['final_review'] != "")]
+    
+    for _, row in tqdm(valid_df.iterrows(), total=len(valid_df), desc="ABSA Extraction"):
+        text = row['final_review']
+        model_name = row['model']
+        
+        doc = nlp(text)
+        
+        for sent in doc.sents:
+            sent_text = sent.text.strip()
+            if not sent_text:
+                continue
+                
+            # Check for aspects
+            found_aspects = []
+            for aspect in ASPECT_LIST:
+                # Simple keyword matching (can be enhanced with synonyms)
+                if aspect in sent_text.lower():
+                    found_aspects.append(aspect)
+            
+            if found_aspects:
+                # Determine sentiment of the sentence
+                # If we have the pipeline, use it on the sentence
+                # Otherwise fall back to review sentiment (less accurate)
+                label = 'Neutral'
+                if sentiment_pipeline:
+                    try:
+                        res = sentiment_pipeline(sent_text, truncation=True, max_length=512)[0]
+                        star = int(res['label'].split()[0])
+                        label = get_sentiment_label(star)
+                    except:
+                        label = row['sentiment_label'] if pd.notna(row['sentiment_label']) else 'Neutral'
+                else:
+                    label = row['sentiment_label'] if pd.notna(row['sentiment_label']) else 'Neutral'
+                
+                for aspect in found_aspects:
+                    absa_data.append({
+                        'text': sent_text,
+                        'aspect': aspect,
+                        'label': label,
+                        'model_name': model_name
+                    })
+                    
+    absa_df = pd.DataFrame(absa_data)
+    logger.info(f"Generated {len(absa_df)} ABSA training samples.")
+    return absa_df
 
 def extract_keywords(text_series, top_n=6):
     """Extracts top keywords excluding common stop words."""
@@ -255,7 +327,7 @@ def extract_keywords(text_series, top_n=6):
     all_text = re.sub(r'[^\w\s]', '', all_text)
     words = all_text.split()
     
-    # Basic stop words list (can be expanded)
+    # Basic stop words list
     stop_words = {'the', 'and', 'a', 'to', 'of', 'in', 'it', 'is', 'i', 'for', 'that', 'you', 'my', 'with', 'on', 'this', 'was', 'but', 'so', 'have', 'be', 'not', 'are', 'as', 'at', 'if', 'or', 'me', 'one', 'up', 'out', 'all', 'very', 'good', 'great', 'product', 'laptop', 'phone', 'device', 'its', 'just', 'like', 'from', 'an', 'no', 'has', 'had', 'will', 'can', 'do', 'about', 'when', 'get', 'use', 'than', 'more', 'some', 'only', 'would', 'really', 'after', 'time', 'buy', 'best', 'well', 'much', 'also', 'even', 'too', 'am', 'because', 'don', 't', 's', 've', 'm', 're', 'd', 'll'}
     
     filtered_words = [w for w in words if w not in stop_words and len(w) > 2]
@@ -365,9 +437,6 @@ def generate_feedback_report(stats_df):
 
 def plot_results(df, stats_df, output_dir):
     """Generates and saves plots."""
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-    
     os.makedirs(output_dir, exist_ok=True)
     logger.info(f"Saving plots to {output_dir}...")
     
@@ -386,6 +455,31 @@ def plot_results(df, stats_df, output_dir):
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'per_model_sentiment_count.png'))
     plt.close()
+    
+    # Top Keywords (Horizontal Bar) - Just taking top 10 overall for simplicity
+    plt.figure(figsize=(10, 8))
+    all_valid_reviews = df[df['sentiment_label'].notna()]['final_review']
+    top_keywords = extract_keywords(all_valid_reviews, top_n=10)
+    if top_keywords:
+        # We need counts for plotting, so let's re-do a bit of logic here or just mock it for visual
+        # Better: Re-use the counter logic
+        all_text = " ".join(all_valid_reviews.astype(str).tolist()).lower()
+        all_text = re.sub(r'[^\w\s]', '', all_text)
+        words = all_text.split()
+        stop_words = {'the', 'and', 'a', 'to', 'of', 'in', 'it', 'is', 'i', 'for', 'that', 'you', 'my', 'with', 'on', 'this', 'was', 'but', 'so', 'have', 'be', 'not', 'are', 'as', 'at', 'if', 'or', 'me', 'one', 'up', 'out', 'all', 'very', 'good', 'great', 'product', 'laptop', 'phone', 'device', 'its', 'just', 'like', 'from', 'an', 'no', 'has', 'had', 'will', 'can', 'do', 'about', 'when', 'get', 'use', 'than', 'more', 'some', 'only', 'would', 'really', 'after', 'time', 'buy', 'best', 'well', 'much', 'also', 'even', 'too', 'am', 'because', 'don', 't', 's', 've', 'm', 're', 'd', 'll'}
+        filtered_words = [w for w in words if w not in stop_words and len(w) > 2]
+        counter = Counter(filtered_words)
+        common = counter.most_common(10)
+        
+        y = [x[0] for x in common]
+        x = [x[1] for x in common]
+        
+        sns.barplot(x=x, y=y)
+        plt.title('Top 10 Keywords Overall')
+        plt.xlabel('Frequency')
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'top_keywords.png'))
+        plt.close()
 
 def main():
     dataset_path = '/Users/anubhavmukherjee/Desktop/Sentiment-analysis/final_dataset.csv'
@@ -395,6 +489,7 @@ def main():
     
     # 1. Load
     df = load_data(dataset_path)
+    # df = df.head(100) # Uncomment for testing
     
     # 2. Preprocess
     df = preprocess_reviews(df)
@@ -406,33 +501,38 @@ def main():
     df = handle_duplicates(df)
     
     # 5. Sentiment Analysis
-    df = analyze_sentiment(df)
+    df, sentiment_pipeline = analyze_sentiment(df)
     
-    # 6. Aggregate
+    # 6. ABSA Dataset Generation
+    absa_df = generate_absa_dataset(df, sentiment_pipeline)
+    
+    # 7. Aggregate
     stats_df = aggregate_model_stats(df)
     
-    # 7. Feedback
+    # 8. Feedback
     feedback_df = generate_feedback_report(stats_df)
     
-    # 8. Save Outputs
+    # 9. Save Outputs
     logger.info("Saving outputs...")
     df.to_csv(os.path.join(output_dir, 'sentiment_output.csv'), index=False)
     stats_df.to_csv(os.path.join(output_dir, 'per_model_summary.csv'), index=False)
     feedback_df.to_csv(os.path.join(output_dir, 'feedback_report.csv'), index=False)
+    if not absa_df.empty:
+        absa_df.to_csv(os.path.join(output_dir, 'absa_training_dataset.csv'), index=False)
     
     # Markdown report
     md_path = os.path.join(output_dir, 'manufacturer_recommendations.md')
     with open(md_path, 'w') as f:
-        f.write("# Manufacturer Feedback Report\\n\\n")
+        f.write("# Manufacturer Feedback Report\n\n")
         for _, row in feedback_df.iterrows():
-            f.write(f"## Model: {row['model']}\\n")
-            f.write(f"**Summary**: {row['summary']}\\n\\n")
-            f.write(f"**Strengths**: {row['strengths']}\\n\\n")
-            f.write(f"**Weaknesses**: {row['weaknesses']}\\n\\n")
-            f.write(f"**Recommendations**: {row['recommendations']}\\n\\n")
-            f.write("---\\n\\n")
+            f.write(f"## Model: {row['model']}\n")
+            f.write(f"**Summary**: {row['summary']}\n\n")
+            f.write(f"**Strengths**: {row['strengths']}\n\n")
+            f.write(f"**Weaknesses**: {row['weaknesses']}\n\n")
+            f.write(f"**Recommendations**: {row['recommendations']}\n\n")
+            f.write("---\n\n")
             
-    # 9. Plots
+    # 10. Plots
     try:
         plot_results(df, stats_df, plots_dir)
     except ImportError:
@@ -440,7 +540,7 @@ def main():
     except Exception as e:
         logger.warning(f"Error plotting: {e}")
     
-    # 10. Display (Print to console for now, Notebook will handle display)
+    # 11. Display
     print("\n=== Model Summary (First 10 Rows) ===")
     try:
         print(stats_df.head(10).to_markdown(index=False))

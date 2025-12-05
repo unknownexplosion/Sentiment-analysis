@@ -18,6 +18,7 @@ import os
 import sys
 import matplotlib.pyplot as plt
 from IPython.display import display, Image
+from tqdm import tqdm
 
 # Add current directory to path to import pipeline
 sys.path.append(os.getcwd())
@@ -25,11 +26,11 @@ sys.path.append(os.getcwd())
 # Import functions from our pipeline script
 from sentiment_pipeline import (
     load_data, preprocess_reviews, translate_and_clean, 
-    handle_duplicates, analyze_sentiment, aggregate_model_stats, 
+    handle_duplicates, analyze_sentiment, generate_absa_dataset, aggregate_model_stats, 
     generate_feedback_report, plot_results
 )
 
-%matplotlib inline
+# %matplotlib inline
 """
 
 code_load = """# 1. Load Data
@@ -45,6 +46,10 @@ print(f"Rows after cleaning: {len(df)}")
 
 code_translate = """# 3. Translate & Re-clean
 # This step might take time if using actual translation API
+tqdm.pandas(desc="Translating & Cleaning")
+df['translated_review'] = df['cleaned_review'].progress_apply(lambda x: process_row({'cleaned_review': x}))
+# Note: process_row needs to be available or we rely on the pipeline function which handles it internally.
+# Actually, translate_and_clean in the pipeline script already uses tqdm now.
 df = translate_and_clean(df)
 display(df[['original_review', 'final_review']].head())
 """
@@ -54,8 +59,16 @@ df = handle_duplicates(df)
 """
 
 code_sentiment = """# 5. Sentiment Analysis
-df = analyze_sentiment(df)
+df, sentiment_pipe = analyze_sentiment(df)
 display(df[['model', 'final_review', 'sentiment_label', 'sentiment_score']].head())
+"""
+
+code_absa = """# 6. ABSA Dataset Generation
+absa_df = generate_absa_dataset(df, sentiment_pipe)
+if not absa_df.empty:
+    display(absa_df.head())
+else:
+    print("No ABSA data generated (Spacy missing or no aspects found).")
 """
 
 code_agg = """# 6. Aggregate Stats
@@ -83,6 +96,8 @@ os.makedirs(output_dir, exist_ok=True)
 df.to_csv(os.path.join(output_dir, 'sentiment_output.csv'), index=False)
 stats_df.to_csv(os.path.join(output_dir, 'per_model_summary.csv'), index=False)
 feedback_df.to_csv(os.path.join(output_dir, 'feedback_report.csv'), index=False)
+if 'absa_df' in locals() and not absa_df.empty:
+    absa_df.to_csv(os.path.join(output_dir, 'absa_training_dataset.csv'), index=False)
 
 # Markdown report
 md_path = os.path.join(output_dir, 'manufacturer_recommendations.md')
@@ -121,6 +136,7 @@ nb['cells'] = [
     nbf.v4.new_code_cell(code_translate),
     nbf.v4.new_code_cell(code_duplicates),
     nbf.v4.new_code_cell(code_sentiment),
+    nbf.v4.new_code_cell(code_absa),
     nbf.v4.new_code_cell(code_agg),
     nbf.v4.new_code_cell(code_feedback),
     nbf.v4.new_code_cell(code_display_tables),

@@ -9,3 +9,8 @@ matplotlib
 seaborn
 openpyxl
 tabulate
+spacy
+nbformat
+streamlit
+plotly
+tqdm
