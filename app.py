@@ -88,7 +88,7 @@ with tab1:
             x='sentiment_label', 
             color='sentiment_label',
             category_orders={'sentiment_label': ['Positive', 'Neutral', 'Negative']},
-            color_discrete_map={'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'},
+            color_discrete_map={'Positive': '#77DD77', 'Neutral': '#84B6F4', 'Negative': '#FF6961'},
             title="Sentiment Distribution"
         )
         st.plotly_chart(fig_dist, width="stretch")
@@ -100,7 +100,7 @@ with tab1:
             x='sentiment_score', 
             nbins=5,
             title="Star Rating Distribution",
-            color_discrete_sequence=['#3366CC']
+            color_discrete_sequence=['#84B6F4']
         )
         fig_score.update_layout(bargap=0.2)
         st.plotly_chart(fig_score, width="stretch")
@@ -116,7 +116,7 @@ with tab1:
             x='aspect', 
             y='count', 
             color='label',
-            color_discrete_map={'Positive': 'green', 'Neutral': 'gray', 'Negative': 'red'},
+            color_discrete_map={'Positive': '#77DD77', 'Neutral': '#84B6F4', 'Negative': '#FF6961'},
             title="Sentiment by Aspect"
         )
         st.plotly_chart(fig_absa, width="stretch")
