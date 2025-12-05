@@ -14,3 +14,6 @@ nbformat
 streamlit
 plotly
 tqdm
+scikit-learn
+accelerate
+sentencepiece
