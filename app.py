@@ -287,11 +287,29 @@ def render_playground():
             else:
                 with st.spinner("Processing with DeBERTa..."):
                     try:
-                        # Load Model Logic (Same as before but cleaner)
-                        model_path = "outputs/fine_tuned_absa_model"
-                        model_name = model_path if os.path.exists(model_path) else "nlptown/bert-base-multilingual-uncased-sentiment"
+                        # Load Model Logic
+                        # --------------------------------------------------------
+                        # 1. Configuration: Replace with YOUR Hugging Face Model ID after running upload_to_hub.py
+                        #    Example: HF_MODEL_NAME = "anubhavmukherjee/apple-absa-v1"
+                        HF_MODEL_NAME = "unknownexplosion/Anubhav" # Cloud Model ID
                         
-                        classifier = pipeline("sentiment-analysis", model=model_name)
+                        # 2. Check for Local Model (Dev Environment)
+                        base_dir = os.getcwd()
+                        local_model_path = os.path.join(base_dir, "outputs", "fine_tuned_absa_model")
+                        
+                        if os.path.exists(local_model_path):
+                             final_model_name = local_model_path
+                             st.sidebar.success(f"Model: Local Fine-Tuned")
+                        else:
+                             # 3. Check for Cloud Model (Deployment)
+                             # If you uploaded your model, change HF_MODEL_NAME above!
+                             final_model_name = HF_MODEL_NAME
+                             if "bert-base" in HF_MODEL_NAME:
+                                 st.sidebar.warning("Note: Using Base Model (Not Fine-Tuned)")
+                             else:
+                                 st.sidebar.info(f"Model: Cloud ({HF_MODEL_NAME})")
+
+                        classifier = pipeline("sentiment-analysis", model=final_model_name)
                         result = classifier(user_input)[0]
                         
                         label = result['label']
@@ -319,10 +337,10 @@ def render_playground():
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        if os.path.exists(model_path):
+                        if os.path.exists(local_model_path):
                             st.caption("✅ Processed locally using **Fine-Tuned DeBERTa**")
                         else:
-                            st.caption("⚠️ Processed using **Base BERT** (Fine-tuned model not found)")
+                            st.caption("⚠️ Processed using **base model** (or Cloud Model)")
 
                     except Exception as e:
                         st.error(f"Error: {e}")
