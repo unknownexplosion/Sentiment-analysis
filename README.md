@@ -1,15 +1,13 @@
 
-# � Apple Sentiment Analysis
+# Apple Sentiment Analysis
 ### Mining Public Opinion using DeBERTa & Aspect-Based Sentiment Analysis (ABSA)
 
-![Project Status](https://img.shields.io/badge/Status-Submission_Ready-success)
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue)
 ![Model](https://img.shields.io/badge/Model-DeBERTa_v3-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## � Executive Summary
+## Executive Summary
 
 In the high-stakes consumer electronics market, understanding brand perception is critical. **Apple Sentiment Analysis** is a production-grade NLP pipeline designed to decode public sentiment regarding Apple products. 
 
@@ -96,23 +94,6 @@ View the insights in the interactive web app.
 streamlit run app.py
 ```
 
----
-
-## 📂 Project Cleanup Strategy (Phase 1)
-*For a professional submission, the following directories are excluded via `.gitignore` or should be deleted before zipping:*
-
-*   `__pycache__/` - Compiled Python bytecode (Delete).
-*   `.venv/` - Local virtual environment (Delete; use `requirements.txt`).
-*   `.ipynb_checkpoints` - Jupyter autosaves (Delete).
-*   `outputs/fine_tuned_absa_model/checkpoint-*` - Intermediate training states (Delete; keep only the final model files).
-*   `fine_tuned_model.zip` - Raw download archive (Delete after extraction).
-
-**Artifacts to KEEP:**
-*   `app.py`, `sentiment_pipeline.py`, `train_absa_model.py` (Source Code)
-*   `requirements.txt`, `README.md` (Documentation)
-*   `outputs/fine_tuned_absa_model/` (The Final Model weights - `config.json`, `model.safetensors`, etc.)
-
----
 
 ## 🎮 Demo Usage
 
@@ -136,8 +117,3 @@ print(result)
 # Output: [{'label': 'Positive', 'score': 0.98}] 
 # Note: The 'battery' aspect pulled the score up, despite the 'price' complaint.
 ```
-
----
-
-**Author:** Anubhav Mukherjee
-**Project:** Apple Sentiment Analysis (Final Year Submission)
