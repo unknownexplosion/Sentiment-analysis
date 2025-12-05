@@ -158,7 +158,17 @@ with tab4:
         try:
             from transformers import pipeline
             with st.spinner("Loading model..."):
-                sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+                import os
+                local_model_path = "outputs/fine_tuned_absa_model"
+                model_name = "nlptown/bert-base-multilingual-uncased-sentiment"
+                
+                if os.path.exists(local_model_path):
+                    st.success(f"Using local fine-tuned model: {local_model_path}")
+                    model_name = local_model_path
+                else:
+                    st.info(f"Using default model: {model_name}")
+
+                sentiment_pipeline = pipeline("sentiment-analysis", model=model_name)
                 result = sentiment_pipeline(user_input)[0]
                 label = result['label']
                 score = result['score']

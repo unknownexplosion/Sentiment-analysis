@@ -223,8 +223,17 @@ def analyze_sentiment(df):
 
     if TRANSFORMERS_AVAILABLE:
         try:
-            logger.info("Loading BERT model...")
-            sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+            local_model_path = "outputs/fine_tuned_absa_model"
+            model_name = "nlptown/bert-base-multilingual-uncased-sentiment"
+            
+            if os.path.exists(local_model_path):
+                logger.info(f"Found fine-tuned model at {local_model_path}. Using it!")
+                model_name = local_model_path
+            else:
+                logger.info(f"Fine-tuned model not found. Using default: {model_name}")
+
+            logger.info(f"Loading model: {model_name}...")
+            sentiment_pipeline = pipeline("sentiment-analysis", model=model_name)
             
             # Process in batches to avoid memory issues
             batch_size = 32

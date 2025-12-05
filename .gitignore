@@ -33,3 +33,7 @@ wheels/
 
 # Project specific
 # outputs/  <-- Uncomment if you don't want to commit generated reports
+
+# Large Model Files
+*.zip
+outputs/fine_tuned_absa_model/
