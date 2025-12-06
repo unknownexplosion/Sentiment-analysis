@@ -131,29 +131,34 @@ class GenAIAnalyzer:
         
         logger.info(f"✅ Retrieved {len(rag_context)} unique relevant reviews for context.")
 
-        # Construct the Prompt with RAG Context
-        # Reduced to 20 to strictly fit within JSON output limits
-        absa_json_str = json.dumps(rag_context[:20])
+        # Assign temporary IDs to track context without echoing full text
+        # Restored to 40 reviews since we are no longer echoing text
+        rag_context_subset = rag_context[:40]
+        context_map = {}
+        for idx, item in enumerate(rag_context_subset):
+            item['id'] = idx
+            context_map[idx] = item
+            
+        absa_json_str = json.dumps(rag_context_subset)
 
         prompt = f"""
         You are an expert Product Analyst and Data Engineer.
         
         You are given:
         1. The device model name.
-        2. A list of RELEVANT reviews retrieved via Vector Search (Raw Text & Overall Sentiment).
+        2. A list of RELEVANT reviews (id, review_text, sentiment).
 
         Your tasks:
-        A. Read all reviews and PERFORM Aspect-Based Sentiment Analysis (ABSA) on them:
-           - Identify aspects like battery, camera, display, performance, price.
-           - Determine sentiment for each aspect.
+        A. Read all reviews and PERFORM Aspect-Based Sentiment Analysis (ABSA).
+        B. Write a manufacturer-focused report.
+        C. Extract aspect data for each review.
         
-        B. Write a manufacturer-focused report:
-           - Summarize key strengths and weaknesses per aspect.
-           - Highlight recurring issues or complaints found in this retrieved evidence.
-           - Suggest 3–7 concrete, actionable improvements for the next hardware/software iteration.
-           - Use clear, professional language.
+        IMPORTANT OPTIMIZATION RULES:
+        - In the "review_aspect_records" output, DO NOT return the "review_text" or "model".
+        - ONLY return the "id" and the "aspects" list.
+        - I will map the text back myself using the "id".
 
-        C. Produce output in the following EXACT JSON structure so it can be saved to MongoDB Atlas:
+        Output JSON Structure:
 
         {{
           "manufacturer_report": {{
@@ -162,10 +167,7 @@ class GenAIAnalyzer:
           }},
           "review_aspect_records": [
             {{
-              "model": "{model_name}",
-              "review_id": "<string: generate unique id>",
-              "review_text": "<string: original review text>",
-              "overall_sentiment": "<string: one of: positive, negative, neutral>",
+              "id": <int: matching the input id>,
               "aspects": [
                 {{
                   "name": "<string: aspect name>",
@@ -180,25 +182,18 @@ class GenAIAnalyzer:
 
         Rules:
         - Keep the JSON valid.
-        - Escape any quotes within strings properly.
-        - Check for trailing commas (do NOT include them).
-        - Every review in the input must appear once in "review_aspect_records".
-        - "model" must be the SAME for all records.
+        - "review_aspect_records" must contain one entry for every input review.
         - RETURN ONLY JSON.
 
-        Now use the following input:
-
-        MODEL_NAME:
-        {model_name}
-
-        RETRIEVED_EVIDENCE (JSON):
-        {absa_json_str}
+        Input Data:
+        MODEL_NAME: {model_name}
+        EVIDENCE: {absa_json_str}
         """
 
         try:
             logger.info(f"Sending prompt to Gemini for {model_name}...")
             
-            # Enforce JSON output mode and increase token limit to prevent truncation
+            # Enforce JSON output mode
             generation_config = {
                 "response_mime_type": "application/json",
                 "max_output_tokens": 8192,
@@ -212,6 +207,26 @@ class GenAIAnalyzer:
             
             text_response = self._clean_json_output(response.text)
             result_json = json.loads(text_response)
+            
+            # Post-processing: Re-attach original text and metadata
+            if "review_aspect_records" in result_json:
+                enriched_records = []
+                for record in result_json["review_aspect_records"]:
+                    r_id = record.get("id")
+                    if r_id is not None and r_id in context_map:
+                        original = context_map[r_id]
+                        # Merge the LLM's aspects with the Original Content
+                        full_record = {
+                            "model": model_name,
+                            "review_text": original.get("review_text", ""),
+                            "overall_sentiment": original.get("overall_sentiment", "Neutral"),
+                            "aspects": record.get("aspects", [])
+                        }
+                        enriched_records.append(full_record)
+                
+                # Replace the lightweight list with the full records
+                result_json["review_aspect_records"] = enriched_records
+                
             return result_json
 
         except Exception as e:
