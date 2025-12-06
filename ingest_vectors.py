@@ -45,7 +45,8 @@ genai.configure(api_key=GOOGLE_API_KEY)
 def ingest_data():
     # 1. Connect to MongoDB
     try:
-        client = MongoClient(MONGO_URI)
+        # SSL Verification Fix
+        client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
         db = client[DB_NAME]
         collection = db[COLLECTION_NAME]
         logger.info("✅ Connected to MongoDB.")

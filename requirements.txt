@@ -20,3 +20,4 @@ sentencepiece
 fpdf2
 pymongo
 google-generativeai
+certifi

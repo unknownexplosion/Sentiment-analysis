@@ -11,6 +11,10 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+import certifi
+
+# ...
+
 class GenAIAnalyzer:
     def __init__(self, google_api_key=None, mongo_uri=None):
         self.api_key = google_api_key or os.getenv("GOOGLE_API_KEY")
@@ -27,7 +31,8 @@ class GenAIAnalyzer:
             self.db = None
         else:
             try:
-                self.client = MongoClient(self.mongo_uri)
+                # Add tlsCAFile to fix SSL error on Mac/Streamlit Cloud
+                self.client = MongoClient(self.mongo_uri, tlsCAFile=certifi.where())
                 self.db = self.client.get_database("sentiment_analysis_db") # Default DB name
                 logger.info("Connected to MongoDB.")
             except Exception as e:
