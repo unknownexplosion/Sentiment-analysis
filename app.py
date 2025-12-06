@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os
+from fpdf import FPDF
 
 try:
     from transformers import pipeline
@@ -132,12 +133,12 @@ def _detect_aspect(text: str) -> str:
     return best_aspect
 
 
-# --- Configuration & Styling ---
+# --- App Config ---
 st.set_page_config(
     page_title="Apple Sentiment Analysis",
-    page_icon="assets/apple_logo.png",
+    page_icon="🍎",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # Custom CSS for Minimalist Apple-like Design
@@ -210,12 +211,12 @@ def main():
     # Sidebar Navigation
     with st.sidebar:
         st.title("Navigation")
-        page = st.radio("Go to", ["Project Overview", "Live Dashboard", "Model Playground", "Manufacturer Report"], label_visibility="collapsed")
+        page = st.radio("Go to", ["Project Overview", "Live Dashboard", "Model Playground", "Manufacturer Report", "Strategy Hub"], label_visibility="collapsed")
         
         st.markdown("---")
         st.info("💡 **Tip:** Use the 'Playground' to test your own text.")
         st.markdown("---")
-        st.caption("v2.0 • DeBERTa Powered")
+        st.caption("v2.1 • GenAI & MongoDB")
 
     if page == "Project Overview":
         render_overview()
@@ -225,6 +226,9 @@ def main():
         render_playground()
     elif page == "Manufacturer Report":
         render_report()
+    elif page == "Strategy Hub":
+        render_strategy_hub(df)
+
 
 # --- Page: Project Overview ---
 def render_overview():
@@ -694,6 +698,152 @@ def render_report():
         st.warning("⚠️ Report not found.")
         st.info("Please run the `sentiment_pipeline.py` script to generate the analysis first.")
 
+
+# --- Helper: PDF Generator ---
+class PDFReport(FPDF):
+    def header(self):
+        self.set_font('Helvetica', 'B', 15)
+        self.cell(0, 10, 'GenAI Strategy Report', align='C', new_x="LMARGIN", new_y="NEXT")
+        self.ln(5)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Helvetica', 'I', 8)
+        self.cell(0, 10, f'Page {self.page_no()}', align='C')
+
+def create_pdf(model_name, report_text):
+    pdf = PDFReport()
+    pdf.add_page()
+    
+    # Title
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 10, f"Manufacturer Report: {model_name}", new_x="LMARGIN", new_y="NEXT", align='L')
+    pdf.ln(5)
+    
+    # Body
+    pdf.set_font("Helvetica", size=11)
+    
+    # Handle basic markdown-like formatting for clearer PDF
+    # Simple replacement for bolding since FPDF doesn't support markdown natively without plugins
+    clean_text = report_text.replace("**", "").replace("###", "").replace("##", "")
+    
+    lines = clean_text.split('\n')
+    for line in lines:
+        try:
+           encoded_line = line.strip()
+           if encoded_line:
+               pdf.multi_cell(0, 6, encoded_line)
+           pdf.ln(1)
+        except:
+           pass
+        
+    return pdf.output(dest='S') # Return as byte string
+
+# --- Page: GenAI Strategy Hub ---
+def render_strategy_hub(df):
+    st.markdown("## 🤖 GenAI Strategy & Data Hub")
+    st.markdown("Leverage **Google Gemini** to generate strategic insights and store structured data in **MongoDB**.")
+    
+    # 1. Credentials Setup
+    with st.expander("🔑 Configuration (API Keys)", expanded=True):
+        col1, col2 = st.columns(2)
+        
+        # Load from secrets
+        default_google = st.secrets.get("general", {}).get("GOOGLE_API_KEY", "")
+        default_mongo = st.secrets.get("general", {}).get("MONGO_URI", "")
+
+        # Logic: If secrets exist, don't show them in plain text boxes.
+        # Just show a status indicator.
+        
+        with col1:
+            if default_google:
+                st.success("✅ Google API Key Loaded")
+                google_key = default_google
+            else:
+                google_key = st.text_input("Google Gemini API Key", type="password", help="Get it from Google AI Studio")
+
+        with col2:
+            if default_mongo:
+                st.success("✅ MongoDB URI Loaded")
+                mongo_uri = default_mongo
+            else:
+                mongo_uri = st.text_input("MongoDB Connection URI", type="password", help="e.g., mongodb://localhost:27017/")
+
+    if not df.empty:
+        # 2. Select Data
+        st.divider()
+        st.subheader("1. Select Data used for Analysis")
+        model_list = sorted(df['model'].dropna().unique().tolist())
+        selected_model_analyze = st.selectbox("Choose a Model to Analyze", model_list)
+        
+        # Filter data
+        model_df = df[df['model'] == selected_model_analyze]
+        st.write(f"Found **{len(model_df)}** reviews for {selected_model_analyze}")
+        
+        if st.button("🚀 Run GenAI Analysis"):
+            if not google_key:
+                st.error("Please enter your Google API Key.")
+                return
+            
+            # Initialize Module
+            try:
+                from genai_analysis import GenAIAnalyzer
+                analyzer = GenAIAnalyzer(google_api_key=google_key, mongo_uri=mongo_uri)
+                
+                with st.status("🤖 AI Agent Working...", expanded=True) as status:
+                    st.write("Constructing prompt context...")
+                    # Limit sample size to avoid token limits for demo
+                    sample_df = model_df.head(50) 
+                    
+                    st.write("Calling Gemini 2.0 Flash...")
+                    result = analyzer.generate_report(selected_model_analyze, sample_df)
+                    
+                    if "error" in result:
+                        status.update(label="❌ Analysis Failed", state="error")
+                        st.error(result["error"])
+                    else:
+                        st.write("Parsing strategic insights...")
+                        report = result.get("manufacturer_report", {}).get("report", "No report generated.")
+                        
+                        status.update(label="✅ Analysis Complete!", state="complete")
+                        
+                        if "manufacturer_report" in result:
+                            report_content = result["manufacturer_report"]["report"]
+                            st.subheader("📋 GenAI Manufacturer Report") # Added this back for consistency
+                            st.markdown(report_content)
+                            
+                            # PDF Download Button
+                            st.divider()
+                            pdf_bytes = create_pdf(selected_model_analyze, report_content)
+                            st.download_button(
+                                label="📄 Download Report as PDF",
+                                data=bytes(pdf_bytes),
+                                file_name=f"{selected_model_analyze}_Strategy_Report.pdf",
+                                mime="application/pdf"
+                            )
+                        
+                        # Display Structured Data (moved outside the if/else for report display, as it's always shown)
+                        st.subheader("💾 Structured Aspect Data")
+                        records = result.get("review_aspect_records", [])
+                        st.dataframe(pd.DataFrame(records))
+                        
+                        # 3. Store to DB
+                        if mongo_uri:
+                            with st.spinner("Saving to MongoDB..."):
+                                success, msg = analyzer.save_to_db(result)
+                                if success:
+                                    st.success(f"✅ {msg}")
+                                else:
+                                    st.error(f"❌ {msg}")
+                        else:
+                            st.warning("⚠️ MongoDB URI not provided. Skipping database storage.")
+                            
+            except ImportError:
+                st.error("Module 'genai_analysis' not found. Please check setup.")
+            except Exception as e:
+                st.error(f"An unexpected error occurred: {e}")
+    else:
+        st.warning("No data found to analyze.")
 
 if __name__ == "__main__":
     main()

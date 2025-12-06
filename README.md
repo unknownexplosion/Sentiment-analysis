@@ -89,7 +89,28 @@ Extract data, process sentiment, and generate reports.
 ```bash
 python sentiment_pipeline.py
 ```
-*   **Output:** `outputs/` folder containing CSV summaries and PNG charts.
+*   **Output:** `outputs/` folder
+## 🗄️ Database Setup (MongoDB)
+
+To use the **Strategy Hub**, you need a MongoDB connection.
+
+### Option 1: Cloud (MongoDB Atlas) - Recommended
+1.  Create a free account at [MongoDB Atlas](https://www.mongodb.com/atlas).
+2.  Create a free cluster.
+3.  Click **Connect** > **Drivers** > **Python**.
+4.  Copy the connection string. It looks like:
+    `mongodb+srv://<username>:<password>@cluster0.abcde.mongodb.net/`
+5.  Replace `<password>` with your actual database user password.
+
+### Option 2: Local MongoDB
+1.  Install [MongoDB Community Server](https://www.mongodb.com/try/download/community).
+2.  Start the service.
+3.  Your URI is typically: `mongodb://localhost:27017/`
+
+### 🔑 Entering Credentials
+Go to the **Strategy Hub** page in the Streamlit app and paste your URI into the "MongoDB Connection URI" field.
+
+## 🤝 Contributing CSV summaries and PNG charts.
 
 ### 2. Auto-Pilot (Pipeline + Training)
 Run the entire end-to-end system (Generation + Fine-Tuning) in one go:

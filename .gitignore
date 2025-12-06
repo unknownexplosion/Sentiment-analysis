@@ -37,3 +37,6 @@ wheels/
 # Large Model Files
 *.zip
 outputs/fine_tuned_absa_model/
+
+# Streamlit Secrets
+.streamlit/

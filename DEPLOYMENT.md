@@ -1,36 +1,55 @@
-# Deployment Guide for Streamlit Community Cloud
+# 🚀 How to Deploy Securely to Streamlit Cloud
 
-Since your code is already on GitHub, deploying your dashboard is very easy and free!
+**Goal:** Publish your app to the internet without leaking your passwords.
 
-## Prerequisites
-1. Ensure your GitHub repository is **public** (or you have a Streamlit Community Cloud account linked to it).
-2. Your repository should contain:
-   - `app.py` (The main dashboard file)
-   - `requirements.txt` (List of dependencies)
-   - `outputs/*.csv` (The data files to display)
+---
 
-(We have already set all of this up!)
+## 🛑 Step 1: Safety Check
+Make sure you are **NOT** committing your passwords to GitHub.
+We already set this up, but verify your `.gitignore` file contains:
+```
+.streamlit/
+.env
+__pycache__/
+```
+*Result: Your local `secrets.toml` stays on your laptop. GitHub only sees the code.*
 
-## Steps to Deploy
+---
 
-1. **Go to Streamlit Cloud:**
-   - Visit [share.streamlit.io](https://share.streamlit.io/).
-   - Click **"Sign up"** (or "Log in") and use your **GitHub account**.
+## ☁️ Step 2: Push to GitHub
+1.  Create a new repository on GitHub.
+2.  Push your code:
+    ```bash
+    git init
+    git add .
+    git commit -m "Final submission ready for deploy"
+    git branch -M main
+    git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+    git push -u origin main
+    ```
 
-2. **Create a New App:**
-   - Click the **"New app"** button (top right).
-   - If prompted, authorize Streamlit to access your GitHub repositories.
+---
 
-3. **Configure the App:**
-   - **Repository:** Select your repository: `unknownexplosion/Sentiment-analysis` (or search for it).
-   - **Branch:** `main`
-   - **Main file path:** `app.py`
+## 🔒 Step 3: Deploy & Set Secrets (The Important Part)
+1.  Go to **[share.streamlit.io](https://share.streamlit.io/)**.
+2.  Log in with GitHub.
+3.  Click **"New App"** -> Select your repository.
+4.  **BEFORE** clicking "Deploy", look for **"Advanced Settings"** (or the "Manage App" settings after deploy).
+5.  Find the **"Secrets"** section.
+6.  Paste your secrets there using the TOML format (just like your local file):
 
-4. **Deploy:**
-   - Click **"Deploy!"**.
-   - Watch the logs as it builds your environment (it downloads the libraries from `requirements.txt`).
-   - In a few minutes, your app will be live! 🚀
+```toml
+[general]
+MONGO_URI = "mongodb+srv://noobdrawsdoodle_db_user:YOUR_PASSWORD@cluster0..."
+GOOGLE_API_KEY = "AIzaSy..."
+```
+*(Copy these exact values from your local `.streamlit/secrets.toml` file)*
 
-## Notes
-- **Data Updates:** The app currently reads from the `outputs/` CSV files. On Streamlit Cloud, the file system is ephemeral. If you run the pipeline *there* (which we haven't set up a button for yet), the changes won't be saved back to GitHub automatically.
-- **For now:** Run the pipeline locally on your machine, commit the new CSVs to GitHub, and the Streamlit app will update automatically!
+7.  Click **Save**.
+
+---
+
+## ✅ Result
+*   Your App is live on the internet.
+*   **The Inputs are Hidden:** Because we detected the secrets, the app will just show "✅ Google API Key Loaded" instead of the text box.
+*   **Zero Leaks:** A user inspecting the webpage code will NEVER see your backend secrets. Only the Streamlit server knows them.

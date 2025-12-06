@@ -17,3 +17,6 @@ tqdm
 scikit-learn
 accelerate
 sentencepiece
+fpdf2
+pymongo
+google-generativeai
