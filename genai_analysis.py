@@ -176,6 +176,8 @@ class GenAIAnalyzer:
 
         Rules:
         - Keep the JSON valid.
+        - Escape any quotes within strings properly.
+        - Check for trailing commas (do NOT include them).
         - Every review in the input must appear once in "review_aspect_records".
         - "model" must be the SAME for all records.
         - RETURN ONLY JSON.
