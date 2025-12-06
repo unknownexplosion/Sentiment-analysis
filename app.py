@@ -259,18 +259,22 @@ def render_bi_dashboard():
         col = db["manufacturer_bi_summaries"]
         
         # 2. Fetch Models
-        models = col.distinct("model")
+        db_models = col.distinct("model") or []
+        
+        # Merge with available data from ABSA
+        csv_models = []
+        if not absa_df.empty:
+            if 'model_name' in absa_df.columns:
+                csv_models = absa_df['model_name'].dropna().unique().tolist()
+            elif 'model' in absa_df.columns:
+                csv_models = absa_df['model'].dropna().unique().tolist()
+                
+        # Union and Sort
+        models = sorted(list(set(db_models + csv_models)))
         
         if not models:
-            st.warning("No BI reports found in database.")
-            # Fallback to allow generation if absa_df exists
-            if not absa_df.empty and 'model_name' in absa_df.columns:
-                 models = sorted(absa_df['model_name'].dropna().unique().tolist())
-            elif not absa_df.empty and 'model' in absa_df.columns: # Handle flexible column naming
-                 models = sorted(absa_df['model'].dropna().unique().tolist())
-            else:
-                 st.error("No ABSA data found to generate reports.")
-                 return
+            st.warning("No models found in database or dataset.")
+            return
 
         selected_model = st.selectbox("Select Product Model", models)
         
