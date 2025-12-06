@@ -232,21 +232,37 @@ class GenAIAnalyzer:
         try:
             logger.info(f"Sending prompt to Gemini for {model_name}...")
             
-            # Enforce JSON output mode
-            generation_config = {"response_mime_type": "application/json"}
+            # Enforce JSON output mode and increase token limit to prevent truncation
+            generation_config = {
+                "response_mime_type": "application/json",
+                "max_output_tokens": 8192,
+                "temperature": 0.2
+            }
             
             response = self.model.generate_content(
                 prompt, 
                 generation_config=generation_config
             )
             
-            text_response = response.text.strip()
+            text_response = self._clean_json_output(response.text)
             result_json = json.loads(text_response)
             return result_json
 
         except Exception as e:
             logger.error(f"GenAI generation failed: {e}")
             return {"error": str(e)}
+
+    def _clean_json_output(self, text):
+        """Standardizes JSON string to prevent parsing errors."""
+        text = text.strip()
+        # Remove markdown code blocks if present
+        if text.startswith("```json"):
+            text = text[7:]
+        if text.startswith("```"):
+            text = text[3:]
+        if text.endswith("```"):
+            text = text[:-3]
+        return text.strip()
 
     def save_to_db(self, data):
         """
