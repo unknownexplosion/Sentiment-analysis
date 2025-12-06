@@ -40,6 +40,40 @@ class GenAIAnalyzer:
                 logger.error(f"Failed to connect to MongoDB: {e}")
                 self.db = None
 
+    def _get_historical_summary(self, model_name):
+        """
+        Reads the pre-generated manufacturer_recommendations.md and extracts the section
+        for the specific model.
+        """
+        try:
+            report_path = os.path.join("outputs", "manufacturer_recommendations.md")
+            if not os.path.exists(report_path):
+                return "No historical summary available."
+            
+            with open(report_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            
+            # Simple parsing: Find the section starting with ## Model: {model_name}
+            # and ending at the next ---
+            start_marker = f"## Model: {model_name}"
+            start_idx = content.find(start_marker)
+            
+            if start_idx == -1:
+                return "No specific summary found for this model."
+            
+            # Find the next separator or end of file
+            end_marker = "---"
+            end_idx = content.find(end_marker, start_idx + len(start_marker))
+            
+            if end_idx == -1:
+                end_idx = len(content)
+            
+            return content[start_idx:end_idx].strip()
+            
+        except Exception as e:
+            logger.warning(f"Failed to load historical summary: {e}")
+            return "Error loading summary."
+
     def retrieve_context(self, model_name, queries, k=15):
         """
         Retrieves relevant reviews from MongoDB using Vector Search.
@@ -190,6 +224,9 @@ class GenAIAnalyzer:
 
         RETRIEVED_EVIDENCE (JSON):
         {absa_json_str}
+        
+        QUANTITATIVE_SUMMARY (From Statistical Analysis):
+        {self._get_historical_summary(model_name)}
         """
 
         try:
