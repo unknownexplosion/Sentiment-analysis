@@ -233,7 +233,7 @@ def analyze_sentiment(df):
                 logger.info(f"Fine-tuned model not found. Using default: {model_name}")
 
             logger.info(f"Loading model: {model_name}...")
-            sentiment_pipeline = pipeline("sentiment-analysis", model=model_name, device=-1)
+            sentiment_pipeline = pipeline("sentiment-analysis", model=model_name, device=-1, model_kwargs={"low_cpu_mem_usage": False})
             
             # Process in batches to avoid memory issues
             batch_size = 32

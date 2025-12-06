@@ -424,7 +424,7 @@ def render_playground():
 
         with st.spinner("Loading sentiment model..."):
             # forcing device=-1 (CPU) avoids "meta tensor" errors on Mac/Accelerate
-            classifier = pipeline("sentiment-analysis", model=final_model_name, device=-1)
+            classifier = pipeline("sentiment-analysis", model=final_model_name, device=-1, model_kwargs={"low_cpu_mem_usage": False})
     except Exception as e:
         st.error(f"Model loading failed: {e}")
         return
