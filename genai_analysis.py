@@ -132,8 +132,8 @@ class GenAIAnalyzer:
         logger.info(f"✅ Retrieved {len(rag_context)} unique relevant reviews for context.")
 
         # Assign temporary IDs to track context without echoing full text
-        # Restored to 40 reviews since we are no longer echoing text
-        rag_context_subset = rag_context[:40]
+        # Reduced to 25 to guarantee stability (Token Limit protection)
+        rag_context_subset = rag_context[:25]
         context_map = {}
         for idx, item in enumerate(rag_context_subset):
             item['id'] = idx
@@ -142,7 +142,7 @@ class GenAIAnalyzer:
         absa_json_str = json.dumps(rag_context_subset)
 
         prompt = f"""
-        You are an expert Product Analyst and Data Engineer.
+        You are an expert Product Strategy Consultant.
         
         You are given:
         1. The device model name.
@@ -150,20 +150,21 @@ class GenAIAnalyzer:
 
         Your tasks:
         A. Read all reviews and PERFORM Aspect-Based Sentiment Analysis (ABSA).
-        B. Write a manufacturer-focused report.
+        B. Write a **concise, high-impact Business Proposal** (Manufacturer Report).
         C. Extract aspect data for each review.
         
         IMPORTANT OPTIMIZATION RULES:
+        - **NO FLUFF:** Write the report as a direct Executive Summary. No generic intros/outros.
         - In the "review_aspect_records" output, DO NOT return the "review_text" or "model".
         - ONLY return the "id" and the "aspects" list.
-        - I will map the text back myself using the "id".
+        - Keep "evidence_span" short (max 5-10 words).
 
         Output JSON Structure:
 
         {{
           "manufacturer_report": {{
             "model": "{model_name}",
-            "report": "<string: detailed manufacturer-focused summary>"
+            "report": "<string: Concise Executive Business Proposal (Max 400 words)>"
           }},
           "review_aspect_records": [
             {{
