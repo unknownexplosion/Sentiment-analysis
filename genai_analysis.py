@@ -132,7 +132,8 @@ class GenAIAnalyzer:
         logger.info(f"✅ Retrieved {len(rag_context)} unique relevant reviews for context.")
 
         # Construct the Prompt with RAG Context
-        absa_json_str = json.dumps(rag_context[:60]) # Sending top 60 relevant reviews
+        # Reduced from 60 to 40 to prevent JSON response truncation (Token Limit)
+        absa_json_str = json.dumps(rag_context[:40])
 
         prompt = f"""
         You are an expert Product Analyst and Data Engineer.
