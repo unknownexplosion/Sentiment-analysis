@@ -423,7 +423,8 @@ def render_playground():
                 st.sidebar.info(f"Model: Cloud ({HF_MODEL_NAME})")
 
         with st.spinner("Loading sentiment model..."):
-            classifier = pipeline("sentiment-analysis", model=final_model_name)
+            # forcing device=-1 (CPU) avoids "meta tensor" errors on Mac/Accelerate
+            classifier = pipeline("sentiment-analysis", model=final_model_name, device=-1)
     except Exception as e:
         st.error(f"Model loading failed: {e}")
         return
