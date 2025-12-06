@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import os
-from fpdf import FPDF
+# from fpdf import FPDF # GenAI removed
 
 try:
     from transformers import pipeline
@@ -13,6 +13,10 @@ except ImportError as e:
     print(f"Transformers import failed: {e}")
 
 import re
+import time
+import pymongo
+import certifi
+import toml
 
 # --- Helper Functions for ABSA ---
 def _map_label_to_display(label: str):
@@ -208,15 +212,14 @@ def main():
         st.error("🚨 Data not found. Please run the pipeline first.")
         return
 
-    # Sidebar Navigation
     with st.sidebar:
         st.title("Navigation")
-        page = st.radio("Go to", ["Project Overview", "Live Dashboard", "Model Playground", "Manufacturer Report", "Strategy Hub"], label_visibility="collapsed")
+        page = st.radio("Go to", ["Project Overview", "Live Dashboard", "Model Playground", "Manufacturer Report", "Business Intelligence"], label_visibility="collapsed")
         
         st.markdown("---")
         st.info("💡 **Tip:** Use the 'Playground' to test your own text.")
         st.markdown("---")
-        st.caption("v2.1 • GenAI & MongoDB")
+        st.caption("v2.2 • GenAI Summaries")
 
     if page == "Project Overview":
         render_overview()
@@ -226,8 +229,156 @@ def main():
         render_playground()
     elif page == "Manufacturer Report":
         render_report()
-    elif page == "Strategy Hub":
-        render_strategy_hub(df)
+    elif page == "Business Intelligence":
+        render_bi_dashboard()
+
+# --- Page: Business Intelligence ---
+def render_bi_dashboard():
+    st.markdown("## 🧠 Business Intelligence Hub")
+    st.caption("AI-Generated Executive Summaries (Powered by Gemini 1.5)")
+
+    # 1. Connect to DB
+    # Load secrets again just to be safe or use st.secrets logic if consistent
+    mongo_uri = st.secrets.get("general", {}).get("MONGO_URI") or os.getenv("MONGO_URI")
+    
+    if not mongo_uri:
+        # Fallback to local config loading if st.secrets not populated yet in dev
+        try:
+            secrets = toml.load(".streamlit/secrets.toml")
+            mongo_uri = secrets.get("MONGO_URI") or secrets.get("general", {}).get("MONGO_URI")
+        except:
+            pass
+            
+    if not mongo_uri:
+        st.error("🚨 MongoDB URI not found. Please configure .streamlit/secrets.toml")
+        return
+
+    try:
+        client = pymongo.MongoClient(mongo_uri, tlsCAFile=certifi.where(), tlsAllowInvalidCertificates=True)
+        db = client.get_database("sentiment_analysis_db")
+        col = db["manufacturer_bi_summaries"]
+        
+        # 2. Fetch Models
+        models = col.distinct("model")
+        
+        if not models:
+            st.warning("No BI reports found in database.")
+            # Fallback to allow generation if absa_df exists
+            if not absa_df.empty and 'model_name' in absa_df.columns:
+                 models = sorted(absa_df['model_name'].dropna().unique().tolist())
+            elif not absa_df.empty and 'model' in absa_df.columns: # Handle flexible column naming
+                 models = sorted(absa_df['model'].dropna().unique().tolist())
+            else:
+                 st.error("No ABSA data found to generate reports.")
+                 return
+
+        selected_model = st.selectbox("Select Product Model", models)
+        
+        # 3. Fetch Data
+        record = col.find_one({"model": selected_model})
+        
+        # --- Generation Controls ---
+        col_gen1, col_gen2 = st.columns([3, 1])
+        with col_gen1:
+            if not record:
+                st.info("No report exists for this model yet.")
+        with col_gen2:
+            if st.button("✨ Generate Report", type="primary" if not record else "secondary"):
+                try:
+                    from genai_bi import BISummarizer
+                    
+                    # Filter data for this model
+                    # Ensure alignment of column names
+                    model_col = 'model_name' if 'model_name' in absa_df.columns else 'model'
+                    model_data = absa_df[absa_df[model_col] == selected_model].to_dict('records')
+                    
+                    if not model_data:
+                        st.error("No ABSA data available for this model.")
+                    else:
+                        with st.status("🤖 AI Agent Generating Report...", expanded=True) as status:
+                            bi_bot = BISummarizer()
+                            status.write("Analyzing sentiment patterns...")
+                            # Generate
+                            summary_json = bi_bot.generate_for_model(selected_model, model_data[:100]) # Limit context
+                            
+                            if summary_json:
+                                status.write("Saving to database...")
+                                bi_bot.save_to_mongodb(summary_json)
+                                status.update(label="✅ Report Generated!", state="complete")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                status.update(label="❌ Generation Failed", state="error")
+                except ImportError:
+                    st.error("Could not import genai_bi.py")
+                except Exception as e:
+                    st.error(f"Generation Error: {e}")
+
+        if not record or "business_summary" not in record:
+            return
+            
+        summary = record["business_summary"]
+        
+        # --- UI Layout ---
+        
+        # A. Executive Overview
+        st.markdown("### 📝 Executive Overview")
+        st.info(summary.get("executive_overview", "No overview available."))
+        
+        st.divider()
+        
+        # B. Strengths & Issues
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            st.subheader("✅ Key Strengths")
+            strengths = summary.get("key_strengths", [])
+            if not strengths:
+                st.write("No specific strengths listed.")
+            for item in strengths:
+                with st.expander(f"**{item.get('aspect', 'Feature')}**", expanded=True):
+                    st.write(item.get("summary", ""))
+                    stats = item.get("supporting_sentiment", {})
+                    st.caption(f"Positive: {stats.get('positive_share', 'N/A')} • Negative: {stats.get('negative_share', 'N/A')}")
+        
+        with c2:
+            st.subheader("⚠️ Key Issues")
+            issues = summary.get("key_issues", [])
+            if not issues:
+                st.write("No major issues detected.")
+            for item in issues:
+                priority = item.get("priority", "MEDIUM")
+                p_color = "red" if priority == "HIGH" else "orange" if priority == "MEDIUM" else "blue"
+                
+                with st.expander(f"**{item.get('aspect', 'Feature')}** :{p_color}[{priority}]", expanded=True):
+                    st.write(item.get("summary", ""))
+                    stats = item.get("supporting_sentiment", {})
+                    st.caption(f"Negative: {stats.get('negative_share', 'N/A')} • Positive: {stats.get('positive_share', 'N/A')}")
+
+        st.divider()
+
+        # C. Recommendations
+        st.subheader("🚀 Actionable Recommendations")
+        recs = summary.get("recommendations", [])
+        
+        for rec in recs:
+            st.markdown(
+                f"""
+                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #007AFF;">
+                    <h4 style="margin:0; color: #1D1D1F;">{rec.get('title', 'Recommendation')}</h4>
+                    <p style="margin-top: 5px; color: #424245;">{rec.get('description', '')}</p>
+                    <p style="font-size: 0.9em; color: #007AFF; margin-bottom: 0;"><b>Expected Impact:</b> {rec.get('expected_impact', '')}</p>
+                </div>
+                """, 
+                unsafe_allow_html=True
+            )
+
+        # D. JSON View (Optional)
+        with st.expander("🛠️ View Raw JSON Data"):
+            st.json(record)
+
+    except Exception as e:
+        st.error(f"Database Error: {e}")
 
 
 # --- Page: Project Overview ---
@@ -408,19 +559,9 @@ def render_playground():
         return
 
     try:
-        HF_MODEL_NAME = "unknownexplosion/Anubhav"  # your HF model
-        base_dir = os.getcwd()
-        local_model_path = os.path.join(base_dir, "outputs", "fine_tuned_absa_model")
-
-        if os.path.exists(local_model_path):
-            final_model_name = local_model_path
-            st.sidebar.success("Model: Local Fine-Tuned DeBERTa")
-        else:
-            final_model_name = HF_MODEL_NAME
-            if "bert-base" in HF_MODEL_NAME:
-                st.sidebar.warning("Model: Base (Not Fine-Tuned)")
-            else:
-                st.sidebar.info(f"Model: Cloud ({HF_MODEL_NAME})")
+        HF_MODEL_NAME = "unknownexplosion/Anubhav"
+        st.sidebar.info(f"Model: {HF_MODEL_NAME} (Hugging Face)")
+        final_model_name = HF_MODEL_NAME
 
         with st.spinner("Loading sentiment model..."):
             # forcing device=-1 (CPU) avoids "meta tensor" errors on Mac/Accelerate
@@ -693,158 +834,9 @@ def render_report():
         """, unsafe_allow_html=True)
         
         st.markdown(report_content)
-
-            
     else:
         st.warning("⚠️ Report not found.")
         st.info("Please run the `sentiment_pipeline.py` script to generate the analysis first.")
-
-
-# --- Helper: PDF Generator ---
-class PDFReport(FPDF):
-    def header(self):
-        self.set_font('Helvetica', 'B', 15)
-        self.cell(0, 10, 'GenAI Strategy Report', align='C', new_x="LMARGIN", new_y="NEXT")
-        self.ln(5)
-
-    def footer(self):
-        self.set_y(-15)
-        self.set_font('Helvetica', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()}', align='C')
-
-def create_pdf(model_name, report_text):
-    pdf = PDFReport()
-    pdf.add_page()
-    
-    # Title
-    pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, f"Manufacturer Report: {model_name}", new_x="LMARGIN", new_y="NEXT", align='L')
-    pdf.ln(5)
-    
-    # Body
-    pdf.set_font("Helvetica", size=11)
-    
-    # Handle basic markdown-like formatting for clearer PDF
-    # Simple replacement for bolding since FPDF doesn't support markdown natively without plugins
-    clean_text = report_text.replace("**", "").replace("###", "").replace("##", "")
-    
-    lines = clean_text.split('\n')
-    for line in lines:
-        try:
-           encoded_line = line.strip()
-           if encoded_line:
-               pdf.multi_cell(0, 6, encoded_line)
-           pdf.ln(1)
-        except:
-           pass
-        
-    return pdf.output(dest='S') # Return as byte string
-
-# --- Page: GenAI Strategy Hub ---
-def render_strategy_hub(df):
-    st.markdown("## 🤖 GenAI Strategy & Data Hub")
-    st.markdown("Leverage **Google Gemini** to generate strategic insights and store structured data in **MongoDB**.")
-    
-    # 1. Credentials Setup
-    with st.expander("🔑 Configuration (API Keys)", expanded=True):
-        col1, col2 = st.columns(2)
-        
-        # Load from secrets
-        default_google = st.secrets.get("general", {}).get("GOOGLE_API_KEY", "")
-        default_mongo = st.secrets.get("general", {}).get("MONGO_URI", "")
-
-        # Logic: If secrets exist, don't show them in plain text boxes.
-        # Just show a status indicator.
-        
-        with col1:
-            if default_google:
-                st.success("✅ Google API Key Loaded")
-                google_key = default_google
-            else:
-                google_key = st.text_input("Google Gemini API Key", type="password", help="Get it from Google AI Studio")
-
-        with col2:
-            if default_mongo:
-                st.success("✅ MongoDB URI Loaded")
-                mongo_uri = default_mongo
-            else:
-                mongo_uri = st.text_input("MongoDB Connection URI", type="password", help="e.g., mongodb://localhost:27017/")
-
-    if not df.empty:
-        # 2. Select Data
-        st.divider()
-        st.subheader("1. Select Data used for Analysis")
-        model_list = sorted(df['model'].dropna().unique().tolist())
-        selected_model_analyze = st.selectbox("Choose a Model to Analyze", model_list)
-        
-        # Filter data
-        model_df = df[df['model'] == selected_model_analyze]
-        st.write(f"Found **{len(model_df)}** reviews for {selected_model_analyze}")
-        
-        if st.button("🚀 Run GenAI Analysis"):
-            if not google_key:
-                st.error("Please enter your Google API Key.")
-                return
-            
-            # Initialize Module
-            try:
-                from genai_analysis import GenAIAnalyzer
-                analyzer = GenAIAnalyzer(google_api_key=google_key, mongo_uri=mongo_uri)
-                
-                with st.status("🤖 AI Agent Working...", expanded=True) as status:
-                    st.write("Constructing prompt context...")
-                    # Limit sample size to avoid token limits for demo
-                    sample_df = model_df.head(50) 
-                    
-                    st.write("Calling Gemini 2.0 Flash...")
-                    result = analyzer.generate_report(selected_model_analyze, sample_df)
-                    
-                    if "error" in result:
-                        status.update(label="❌ Analysis Failed", state="error")
-                        st.error(result["error"])
-                    else:
-                        st.write("Parsing strategic insights...")
-                        report = result.get("manufacturer_report", {}).get("report", "No report generated.")
-                        
-                        status.update(label="✅ Analysis Complete!", state="complete")
-                        
-                        if "manufacturer_report" in result:
-                            report_content = result["manufacturer_report"]["report"]
-                            st.subheader("📋 GenAI Manufacturer Report") # Added this back for consistency
-                            st.markdown(report_content)
-                            
-                            # PDF Download Button
-                            st.divider()
-                            pdf_bytes = create_pdf(selected_model_analyze, report_content)
-                            st.download_button(
-                                label="📄 Download Report as PDF",
-                                data=bytes(pdf_bytes),
-                                file_name=f"{selected_model_analyze}_Strategy_Report.pdf",
-                                mime="application/pdf"
-                            )
-                        
-                        # Display Structured Data (moved outside the if/else for report display, as it's always shown)
-                        st.subheader("💾 Structured Aspect Data")
-                        records = result.get("review_aspect_records", [])
-                        st.dataframe(pd.DataFrame(records))
-                        
-                        # 3. Store to DB
-                        if mongo_uri:
-                            with st.spinner("Saving to MongoDB..."):
-                                success, msg = analyzer.save_to_db(result)
-                                if success:
-                                    st.success(f"✅ {msg}")
-                                else:
-                                    st.error(f"❌ {msg}")
-                        else:
-                            st.warning("⚠️ MongoDB URI not provided. Skipping database storage.")
-                            
-            except ImportError:
-                st.error("Module 'genai_analysis' not found. Please check setup.")
-            except Exception as e:
-                st.error(f"An unexpected error occurred: {e}")
-    else:
-        st.warning("No data found to analyze.")
 
 if __name__ == "__main__":
     main()

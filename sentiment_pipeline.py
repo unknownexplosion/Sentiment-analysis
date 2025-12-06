@@ -223,16 +223,10 @@ def analyze_sentiment(df):
 
     if TRANSFORMERS_AVAILABLE:
         try:
-            local_model_path = "outputs/fine_tuned_absa_model"
-            model_name = "nlptown/bert-base-multilingual-uncased-sentiment"
+            # Use the user's fine-tuned model from Hugging Face directly
+            model_name = "unknownexplosion/Anubhav"
             
-            if os.path.exists(local_model_path):
-                logger.info(f"Found fine-tuned model at {local_model_path}. Using it!")
-                model_name = local_model_path
-            else:
-                logger.info(f"Fine-tuned model not found. Using default: {model_name}")
-
-            logger.info(f"Loading model: {model_name}...")
+            logger.info(f"Loading Hugging Face model: {model_name}...")
             sentiment_pipeline = pipeline("sentiment-analysis", model=model_name, device=-1, model_kwargs={"low_cpu_mem_usage": False})
             
             # Process in batches to avoid memory issues
