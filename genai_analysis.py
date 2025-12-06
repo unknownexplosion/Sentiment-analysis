@@ -32,7 +32,8 @@ class GenAIAnalyzer:
         else:
             try:
                 # Add tlsCAFile to fix SSL error on Mac/Streamlit Cloud
-                self.client = MongoClient(self.mongo_uri, tlsCAFile=certifi.where())
+                # Added tlsAllowInvalidCertificates=True to bypass strict firewall/proxy SSL modifications
+                self.client = MongoClient(self.mongo_uri, tlsCAFile=certifi.where(), tlsAllowInvalidCertificates=True)
                 self.db = self.client.get_database("sentiment_analysis_db") # Default DB name
                 logger.info("Connected to MongoDB.")
             except Exception as e:
