@@ -53,10 +53,11 @@ The platform has two complementary entry points:
 | **Multi-language support** | Auto-detects and translates non-English reviews to English before analysis |
 | **Reddit Model Scout** | Search **any product** → scrape Reddit live → run the full AI pipeline in one click |
 | **Manufacturer Analytics Hub** | Upload any product-review CSV → KPI cards → weekly line graphs → AI report |
-| **Weekly Auto-Scraper** | Scheduled Reddit scraping (every Sunday) with dedup and state management |
+| **Weekly Auto-Scraper** | Scheduled Reddit scraping (every Sunday) via public JSON APIs with dedup and state management |
+| **Autonomous Retraining** | Monthly "Champion vs. Challenger" self-improvement loop with automated Hugging Face deployment |
 | **Gemini AI Reports** | Executive overview, key strengths/issues, and actionable recommendations via Gemini 2.5 Flash |
 | **Business Intelligence** | MongoDB-backed BI summaries per model, accessible across sessions |
-| **Live Dashboard** | Interactive Plotly charts for the pre-built Apple dataset |
+| **Live Dashboards** | Retraining telemetry, live model insights, and intelligent manufacturer monitoring |
 
 ---
 
@@ -162,6 +163,12 @@ Search **any product** and scrape Reddit reviews on demand:
 
 > **CSV Format**: `model_name | review | date` — this CSV is also forwarded automatically into the Manufacturer Analytics Hub pipeline.
 
+#### Page 8 — Retraining Dashboard ⭐ New
+Real-time command center for the autonomous AI lifecycle:
+- Monitor live tracking of scraper inputs and dataset volume
+- Track **Champion vs. Challenger** metrics across training runs (Accuracy, F1, Precision)
+- Review system health and last/next execution times (weekly scrape + monthly retrain)
+
 ---
 
 ### `manufacturer_dashboard.py` — Standalone Dashboard
@@ -174,35 +181,42 @@ streamlit run manufacturer_dashboard.py
 
 ---
 
-### `reddit_scraper.py` — Reddit Data Collection
+### `reddit_scraper.py` — Credential-Free Reddit Data Collection
 
-Automated Reddit scraper built on the official **PRAW** (Python Reddit API Wrapper) library.
+Automated Reddit scraper built to query public JSON endpoints — **No credentials or API keys required**.
 
 **Features:**
-- Scrapes from 8 target subreddits (`r/apple`, `r/iphone`, `r/MacBook`, `r/iPad`, etc.)
-- Runs search queries across `r/all` for fresh review posts
-- Pulls post body + top-N comments per post
+- Scrapes 15 curated Apple-related subreddits (`r/apple`, `r/iPhone`, `r/Mac`, etc.)
+- Pulls `hot`, `new`, and `top` feeds (up to 40 posts per feed per subreddit)
+- Automatically maps reviews to a comprehensive **57-product Apple taxonomy dictionary**
 - Deduplicates via post ID across runs (persisted in `scraper_state.json`)
-- Maps posts to product models via keyword matching
+- Respects Reddit's rate limits with adaptive back-off delays
 - Outputs: `outputs/scraped/reddit_reviews_all.csv` (cumulative) + weekly timestamped file
 
 **Usage:**
 ```bash
-python reddit_scraper.py                # Full run + pipeline
-python reddit_scraper.py --no-pipeline  # Scrape only, skip pipeline
-python reddit_scraper.py --dry-run      # Test credentials only
+python reddit_scraper.py                # Full run + automatic sentiment pipeline analysis
+python reddit_scraper.py --no-pipeline  # Scrape only, skip sentiment pipeline
+python reddit_scraper.py --dry-run      # Test connectivity to Reddit without scraping
 ```
 
 ---
 
-### `weekly_scheduler.py` — Automated Scheduling
+### `weekly_scheduler.py` — Autonomous Orchestration
 
-Runs the Reddit scraper every Sunday at 2:00 AM automatically.
+The backend engine that drives the continuous data gathering and model self-improvement loop.
+
+**Features:**
+- **Weekly Scrape Loop:** Runs `reddit_scraper.py` every Sunday at 2:00 AM to enrich the platform dataset.
+- **Monthly Retraining Loop:** Runs `train_absa_model.py` on the 1st of every month.
+- **Champion vs. Challenger Gate:** Evaluates newly trained metrics against the production baseline. Hard requirement: F1 score cannot regress. Soft requirement: 2 out of 3 major metrics (Accuracy, F1, Precision) must improve. 
+- **Automated Deployment:** Pushes the improved model straight to Hugging Face if validation gates are passed.
 
 ```bash
-python weekly_scheduler.py            # Start infinite loop (keeps running)
-python weekly_scheduler.py --now      # Trigger job once immediately
-python weekly_scheduler.py --status   # Show last/next run and post counts
+python weekly_scheduler.py               # Start infinite loop (runs in background)
+python weekly_scheduler.py --status      # Check current system execution state 
+python weekly_scheduler.py --now         # Execute scrape & analysis pipeline immediately
+python weekly_scheduler.py --retrain-now # Execute the monthly retraining pipeline immediately
 ```
 
 ---
@@ -309,7 +323,7 @@ source .venv/bin/activate          # macOS/Linux
 
 # Install dependencies
 pip install -r requirements.txt
-pip install praw toml               # For Reddit scraper
+pip install toml                    # Configuration parser
 
 # Download spaCy model (required for offline pipeline)
 python -m spacy download en_core_web_sm
@@ -320,11 +334,10 @@ python -m spacy download en_core_web_sm
 Create `.streamlit/secrets.toml`:
 
 ```toml
-# ── Reddit API (required for Reddit Model Scout + auto-scraper) ──────────────
-[reddit]
-client_id     = "your_client_id"
-client_secret = "your_client_secret"
-user_agent    = "SentimentScoutBot/1.0 by YourUsername"
+# ── Hugging Face (optional: required for autonomous model deployment) ────────
+[huggingface]
+token   = "hf_your_write_token"
+repo_id = "your_username/SentimentAnalysisog"
 
 # ── Google Gemini (required for AI Executive Reports) ────────────────────────
 GOOGLE_API_KEY = "your_gemini_api_key"
@@ -368,13 +381,11 @@ python weekly_scheduler.py --now
 
 ## ⚙️ Configuration
 
-### Reddit API Credentials
+### Hugging Face Deployments (Optional)
 
-1. Go to [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)
-2. Click **Create App** → choose **script**
-3. Set redirect URI to `http://localhost:8080`
-4. Copy `client_id` (under the app name) and `client_secret`
-5. Paste into `.streamlit/secrets.toml` under `[reddit]`
+Needed only if you run the Monthly Retraining pipeline and want models to automatically upload to HF.
+1. Create a Write Token at [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+2. Add it directly under `[huggingface]` in your `secrets.toml`.
 
 ### Google Gemini API Key
 
@@ -571,21 +582,15 @@ device = -1  # already set — ensure no override
 
 ---
 
-### Reddit credentials error
+### Reddit scraper connectivity / rate limits
 
 ```
-ValueError: Reddit API credentials not found.
+Rate-limited — waiting XXs…
 ```
 
-Ensure `.streamlit/secrets.toml` has:
-```toml
-[reddit]
-client_id     = "..."
-client_secret = "..."
-user_agent    = "..."
-```
-
-And restart the Streamlit app after editing.
+The scraper relies on Reddit's public JSON API. Frequent repeated runs or aggressive querying may trigger `429 Too Many Requests`.
+- The scraper gracefully pauses with an exponential back-off mechanism when rate limited.
+- If scraping fails persistently, you may be on an IP network (like a VPN) blocked by Reddit. Use `python reddit_scraper.py --dry-run` to test direct connectivity.
 
 ---
 
