@@ -40,3 +40,10 @@ outputs/fine_tuned_absa_model/
 
 # Streamlit Secrets
 .streamlit/
+
+# Temporary / generated artifacts
+tmp_hf_upload/
+outputs_og/
+outputs/scraped/scraper_state.json
+outputs/retraining_run.log
+*.code-workspace

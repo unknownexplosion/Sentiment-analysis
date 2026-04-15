@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 880" width="1280" height="880">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap');
+    text { font-family: 'Inter', system-ui, sans-serif; }
+    .title { font-size: 32px; font-weight: 800; fill: #ffffff; }
+    .subtitle { font-size: 15px; font-weight: 400; fill: #8E8E93; }
+    .n-title { font-size: 17px; font-weight: 700; fill: #ffffff; }
+    .n-desc { font-size: 13px; font-weight: 400; fill: #A1A1AA; line-height: 1.4; }
+    .n-quote { font-size: 13px; font-family: monospace; font-weight: 500; fill: #D4D4D8; }
+    .badge { font-size: 11px; font-weight: 700; fill: #ffffff; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tag-pos { fill: #34C759; font-weight: 700; }
+    .tag-neg { fill: #FF3B30; font-weight: 700; }
+    .tag-asp { fill: #007AFF; font-weight: 700; }
+  </style>
+
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0a0f"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+
+    <!-- Node Gradients -->
+    <linearGradient id="gCard" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27272a"/>
+      <stop offset="100%" stop-color="#18181b"/>
+    </linearGradient>
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#005BBB"/>
+      <stop offset="100%" stop-color="#5856D6"/>
+    </linearGradient>
+    <linearGradient id="gOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E6730A"/>
+      <stop offset="100%" stop-color="#FF9F0A"/>
+    </linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#28A745"/>
+      <stop offset="100%" stop-color="#34C759"/>
+    </linearGradient>
+
+    <!-- Shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+
+    <!-- Arrows -->
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#8E8E93"/>
+    </marker>
+    <marker id="arrB" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#5856D6"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1280" height="880" fill="url(#bg)"/>
+
+  <!-- Header -->
+  <text x="640" y="60" class="title" text-anchor="middle">The Missing Link: Scraping to Retraining</text>
+  <text x="640" y="85" class="subtitle" text-anchor="middle">The Transformation Pipeline that prepares raw internet data for Neural Network ingestion</text>
+
+  <!-- ───────────────────────────────────────────────────────────────── -->
+  <!-- CONNECTIONS -->
+  <g stroke="#8E8E93" stroke-width="2" fill="none">
+    <!-- Step 1 to 2 -->
+    <path d="M 380 200 L 440 200" marker-end="url(#arr)"/>
+    <!-- Step 2 to 3 -->
+    <path d="M 820 200 L 880 200" marker-end="url(#arr)"/>
+    
+    <!-- Step 3 Snake Down to Step 4 -->
+    <path d="M 1070 300 C 1070 340, 1070 350, 640 350 C 210 350, 210 360, 210 400" stroke="#5856D6" marker-end="url(#arrB)"/>
+    
+    <!-- Step 4 to 5 -->
+    <path d="M 380 500 L 440 500" marker-end="url(#arr)"/>
+    <!-- Step 5 to 6 -->
+    <path d="M 820 500 L 880 500" marker-end="url(#arr)"/>
+  </g>
+  <!-- ───────────────────────────────────────────────────────────────── -->
+
+
+  <!-- STEP 1: The Scrape -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="140" width="320" height="150" rx="16" fill="url(#gCard)" stroke="rgba(255,255,255,0.1)"/>
+    <text x="80" y="170" class="badge" fill="#F4F4F5">Step 1</text>
+    <text x="80" y="195" class="n-title">The Scrape Finishes</text>
+    <text x="80" y="215" class="n-desc">reddit_scraper.py pulls raw posts.</text>
+    <rect x="80" y="230" width="280" height="45" rx="6" fill="#09090b"/>
+    <text x="90" y="247" class="n-quote">"I absolutely love my new iPhone</text>
+    <text x="90" y="265" class="n-quote">15 Pro, the screen is incredible</text>
+    <text x="90" y="283" class="n-quote">but the battery drains fast."</text>
+  </g>
+
+  <!-- STEP 2: Translation & Cleaning -->
+  <g filter="url(#shadow)">
+    <rect x="440" y="140" width="380" height="150" rx="16" fill="url(#gCard)" stroke="rgba(255,255,255,0.1)"/>
+    <text x="460" y="170" class="badge" fill="#F4F4F5">Step 2</text>
+    <text x="460" y="195" class="n-title">Translation &amp; Cleaning</text>
+    <text x="460" y="215" class="n-desc">Data is piped to sentiment_pipeline.py</text>
+    <text x="475" y="240" class="n-desc" fill="#D4D4D8">• Strips HTML tags, URLs, &amp; emojis</text>
+    <text x="475" y="260" class="n-desc" fill="#D4D4D8">• Uses langdetect &amp; deep_translator</text>
+    <text x="475" y="280" class="n-desc" fill="#D4D4D8">• Converts foreign strings to English</text>
+  </g>
+
+  <!-- STEP 3: Aspect Chopper -->
+  <g filter="url(#shadow)">
+    <rect x="880" y="140" width="360" height="160" rx="16" fill="url(#gBlue)" stroke="rgba(255,255,255,0.2)"/>
+    <text x="900" y="170" class="badge" fill="#D6E4FF">Step 3</text>
+    <text x="900" y="195" class="n-title">"The Aspect Chopper"</text>
+    <text x="900" y="215" class="n-desc" fill="#E2E8F0">Snaps sentence in half based on punctuation/"but".</text>
+    
+    <rect x="900" y="230" width="320" height="25" rx="4" fill="#09090b"/>
+    <text x="910" y="247" class="n-quote">Chop 1: "I love... screen is incredible"</text>
+    
+    <rect x="900" y="260" width="320" height="25" rx="4" fill="#09090b"/>
+    <text x="910" y="277" class="n-quote">Chop 2: "but the battery drains fast."</text>
+  </g>
+
+
+  <!-- STEP 4: Teacher Tagging -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="400" width="320" height="150" rx="16" fill="url(#gCard)" stroke="rgba(255,255,255,0.1)"/>
+    <text x="80" y="430" class="badge" fill="#F4F4F5">Step 4</text>
+    <text x="80" y="455" class="n-title">The Teacher Tagging</text>
+    <text x="80" y="475" class="n-desc">Current production AI grades the clauses.</text>
+    
+    <rect x="80" y="490" width="280" height="25" rx="4" fill="rgba(88,86,214,0.1)"/>
+    <text x="90" y="507" class="n-quote">R1: [<tspan class="tag-asp">Display</tspan>] | [<tspan class="tag-pos">Positive</tspan>]</text>
+    
+    <rect x="80" y="520" width="280" height="25" rx="4" fill="rgba(88,86,214,0.1)"/>
+    <text x="90" y="537" class="n-quote">R2: [<tspan class="tag-asp">Battery</tspan>] | [<tspan class="tag-neg">Negative</tspan>]</text>
+  </g>
+
+  <!-- STEP 5: DB Append -->
+  <g filter="url(#shadow)">
+    <rect x="440" y="400" width="380" height="150" rx="16" fill="url(#gOrange)" stroke="rgba(255,255,255,0.2)"/>
+    <text x="460" y="430" class="badge" fill="#FFCF87">Step 5</text>
+    <text x="460" y="455" class="n-title">Append to Master DB</text>
+    <text x="460" y="475" class="n-desc" fill="#FFF8EB">The final formatted triplets are permanently saved.</text>
+    
+    <rect x="460" y="495" width="340" height="40" rx="8" fill="#18181b"/>
+    <text x="480" y="520" class="n-quote" fill="#D4D4D8">absa_training_dataset.csv</text>
+  </g>
+
+  <!-- STEP 6: The Retraining -->
+  <g filter="url(#shadow)">
+    <rect x="880" y="400" width="360" height="230" rx="16" fill="url(#gGreen)" stroke="rgba(255,255,255,0.2)"/>
+    <text x="900" y="430" class="badge" fill="#E5F9E7">Step 6</text>
+    <text x="900" y="455" class="n-title">Finally... The Retraining</text>
+    <text x="900" y="475" class="n-desc" fill="#E5F9E7">train_absa_model.py initiates process:</text>
+    
+    <rect x="900" y="490" width="320" height="130" rx="8" fill="#09090b"/>
+    <text x="915" y="515" class="n-desc" fill="#D4D4D8">1. <tspan fill="#fff" font-weight="700">Deduplication:</tspan> Wipes exact clones.</text>
+    <text x="915" y="540" class="n-desc" fill="#D4D4D8">2. <tspan fill="#fff" font-weight="700">Class Weights:</tspan> Penalizes Negative misses.</text>
+    <text x="915" y="565" class="n-desc" fill="#D4D4D8">3. <tspan fill="#fff" font-weight="700">8 Epoch Loop:</tspan> Reads over data 8 times.</text>
+    <text x="915" y="590" class="n-desc" fill="#D4D4D8">4. <tspan fill="#fff" font-weight="700">Final Gate:</tspan> Saves if F1-Score improves.</text>
+  </g>
+
+</svg>

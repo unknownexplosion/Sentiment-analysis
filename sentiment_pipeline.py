@@ -224,7 +224,7 @@ def analyze_sentiment(df):
     if TRANSFORMERS_AVAILABLE:
         try:
             # Use the user's fine-tuned model from Hugging Face directly
-            model_name = "unknownexplosion/Anubhav"
+            model_name = "unknownexplosion/SentimentAnalysisog"
             
             logger.info(f"Loading Hugging Face model: {model_name}...")
             sentiment_pipeline = pipeline("sentiment-analysis", model=model_name, device=-1, model_kwargs={"low_cpu_mem_usage": False})
@@ -311,16 +311,24 @@ def generate_absa_dataset(df, sentiment_pipeline):
                     found_aspects.append(aspect)
             
             if found_aspects:
-                # Determine sentiment of the sentence
-                # If we have the pipeline, use it on the sentence
-                # Otherwise fall back to review sentiment (less accurate)
+                # Determine sentiment of the sentence using the pipeline (sentence-level)
+                # Falls back to review-level label if pipeline unavailable
                 label = 'Neutral'
                 if sentiment_pipeline:
                     try:
                         res = sentiment_pipeline(sent_text, truncation=True, max_length=512)[0]
-                        star = int(res['label'].split()[0])
-                        label = get_sentiment_label(star)
-                    except:
+                        raw_label = res['label'].lower()
+                        # Handle both "N stars" (BERT) and text labels (DeBERTa)
+                        if raw_label[0].isdigit():
+                            star = int(raw_label.split()[0])
+                            label = get_sentiment_label(star)
+                        elif 'positive' in raw_label:
+                            label = 'Positive'
+                        elif 'negative' in raw_label:
+                            label = 'Negative'
+                        else:
+                            label = 'Neutral'
+                    except Exception:
                         label = row['sentiment_label'] if pd.notna(row['sentiment_label']) else 'Neutral'
                 else:
                     label = row['sentiment_label'] if pd.notna(row['sentiment_label']) else 'Neutral'
@@ -545,7 +553,7 @@ def plot_results(df, stats_df, output_dir):
         plt.close()
 
 def main():
-    dataset_path = '/Users/anubhavmukherjee/Desktop/Sentiment-analysis/final_dataset.csv'
+    dataset_path = 'final_dataset.csv'
     output_dir = '/Users/anubhavmukherjee/Desktop/Sentiment-analysis/outputs'
     plots_dir = os.path.join(output_dir, 'plots')
     os.makedirs(output_dir, exist_ok=True)

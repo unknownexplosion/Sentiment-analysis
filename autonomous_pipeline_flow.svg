@@ -1,0 +1,252 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <style>
+    text { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+    .title    { font-size: 28px; font-weight: 800; fill: #FFFFFF; }
+    .subtitle { font-size: 13px; fill: #8E8E93; }
+    .label    { font-size: 13px; font-weight: 700; fill: #FFFFFF; }
+    .sub      { font-size: 11px; fill: #C7C7CC; }
+    .badge    { font-size: 10px; font-weight: 700; fill: #FFFFFF; }
+    .edge-lbl { font-size: 11px; font-weight: 600; }
+    .lane-lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  </style>
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#0a0a0f"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <!-- Node fills -->
+    <linearGradient id="gBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#005BBB"/>
+      <stop offset="100%" stop-color="#5856D6"/>
+    </linearGradient>
+    <linearGradient id="gGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#28A745"/>
+      <stop offset="100%" stop-color="#34C759"/>
+    </linearGradient>
+    <linearGradient id="gOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#E6730A"/>
+      <stop offset="100%" stop-color="#FF9F0A"/>
+    </linearGradient>
+    <linearGradient id="gRed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#B22222"/>
+      <stop offset="100%" stop-color="#FF3B30"/>
+    </linearGradient>
+    <linearGradient id="gPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#4B0082"/>
+      <stop offset="100%" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <!-- Subtle card -->
+    <linearGradient id="gCard" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="rgba(255,255,255,0.07)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.02)"/>
+    </linearGradient>
+    <!-- Drop shadow -->
+    <filter id="sh" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <!-- Glow for champion -->
+    <filter id="glow">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Arrow markers -->
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#8E8E93"/>
+    </marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#34C759"/>
+    </marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#FF3B30"/>
+    </marker>
+    <marker id="arrOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#FF9F0A"/>
+    </marker>
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="1280" height="720" fill="url(#bg)"/>
+
+  <!-- ── Lane backgrounds ── -->
+  <!-- Weekly lane (top) -->
+  <rect x="28" y="130" width="1224" height="190" rx="14" fill="rgba(0,122,255,0.04)" stroke="rgba(0,122,255,0.15)" stroke-width="1.5"/>
+  <text x="44" y="152" class="lane-lbl" fill="#007AFF">⟳  Weekly Loop  ·  Every Sunday 02:00</text>
+
+  <!-- Monthly lane (bottom) -->
+  <rect x="28" y="360" width="1224" height="310" rx="14" fill="rgba(88,86,214,0.04)" stroke="rgba(88,86,214,0.18)" stroke-width="1.5"/>
+  <text x="44" y="382" class="lane-lbl" fill="#8B5CF6">🧠  Monthly Loop  ·  1st of every month 02:00</text>
+
+  <!-- ── Header ── -->
+  <text x="640" y="58" class="title" text-anchor="middle">Autonomous Scrape → Accumulate → Retrain → Deploy Pipeline</text>
+  <text x="640" y="80" class="subtitle" text-anchor="middle">weekly_scheduler.py  ·  Reddit Auto-Scraper  ·  Champion vs. Challenger Gate  ·  Hugging Face Hub</text>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- WEEKLY LANE nodes                                              -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+
+  <!-- Node W1 — Scheduler Wakes -->
+  <g filter="url(#sh)">
+    <rect x="48"  y="168" width="170" height="82" rx="14" fill="url(#gBlue)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+    <text x="133" y="196" class="label" text-anchor="middle">1. Scheduler</text>
+    <text x="133" y="213" class="sub"   text-anchor="middle">weekly_scheduler.py</text>
+    <text x="133" y="230" class="sub"   text-anchor="middle">Wakes every Sunday</text>
+  </g>
+
+  <!-- Node W2 — Reddit Scrape -->
+  <g filter="url(#sh)">
+    <rect x="262" y="168" width="170" height="82" rx="14" fill="url(#gOrange)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+    <text x="347" y="196" class="label" text-anchor="middle">2. Reddit Scrape</text>
+    <text x="347" y="213" class="sub"   text-anchor="middle">reddit_scraper.py</text>
+    <text x="347" y="230" class="sub"   text-anchor="middle">15 Apple subreddits</text>
+  </g>
+
+  <!-- Node W3 — Dedup & Map -->
+  <g filter="url(#sh)">
+    <rect x="476" y="168" width="170" height="82" rx="14" fill="url(#gCard)" stroke="rgba(255,165,0,0.5)" stroke-width="1.5"/>
+    <text x="561" y="196" class="label" text-anchor="middle">3. Dedup + Map</text>
+    <text x="561" y="213" class="sub"   text-anchor="middle">scraper_state.json</text>
+    <text x="561" y="230" class="sub"   text-anchor="middle">seen_ids filter</text>
+  </g>
+
+  <!-- Node W4 — Append to CSV -->
+  <g filter="url(#sh)">
+    <rect x="690" y="168" width="170" height="82" rx="14" fill="url(#gGreen)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+    <text x="775" y="196" class="label" text-anchor="middle">4. Append to CSV</text>
+    <text x="775" y="213" class="sub"   text-anchor="middle">reddit_reviews_all.csv</text>
+    <text x="775" y="230" class="sub"   text-anchor="middle">+ weekly snapshot</text>
+  </g>
+
+  <!-- Node W5 — NLP Pipeline -->
+  <g filter="url(#sh)">
+    <rect x="904" y="168" width="170" height="82" rx="14" fill="url(#gCard)" stroke="rgba(0,122,255,0.5)" stroke-width="1.5"/>
+    <text x="989" y="196" class="label" text-anchor="middle">5. NLP Pipeline</text>
+    <text x="989" y="213" class="sub"   text-anchor="middle">DeBERTa scoring</text>
+    <text x="989" y="230" class="sub"   text-anchor="middle">ABSA clause split</text>
+  </g>
+
+  <!-- Node W6 — ABSA Dataset -->
+  <g filter="url(#sh)">
+    <rect x="1093" y="168" width="155" height="82" rx="14" fill="url(#gCard)" stroke="rgba(52,199,89,0.5)" stroke-width="1.5"/>
+    <text x="1170" y="196" class="label" text-anchor="middle">6. ABSA Store</text>
+    <text x="1170" y="213" class="sub"   text-anchor="middle">absa_training_</text>
+    <text x="1170" y="230" class="sub"   text-anchor="middle">dataset.csv grows</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- WEEKLY ARROWS                                                  -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <line x1="218" y1="209" x2="258" y2="209" stroke="#8E8E93" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="432" y1="209" x2="472" y2="209" stroke="#FF9F0A" stroke-width="2.5" marker-end="url(#arrOrange)"/>
+  <line x1="646" y1="209" x2="686" y2="209" stroke="#8E8E93" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="860" y1="209" x2="900" y2="209" stroke="#34C759" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+  <line x1="1074" y1="209" x2="1089" y2="209" stroke="#007AFF" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- MONTHLY LANE nodes                                             -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+
+  <!-- Node M1 — Month-end Trigger -->
+  <g filter="url(#sh)">
+    <rect x="48"  y="398" width="170" height="82" rx="14" fill="url(#gPurple)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+    <text x="133" y="426" class="label" text-anchor="middle">1. Month Trigger</text>
+    <text x="133" y="443" class="sub"   text-anchor="middle">run_monthly_</text>
+    <text x="133" y="460" class="sub"   text-anchor="middle">retraining_job()</text>
+  </g>
+
+  <!-- Node M2 — Snapshot Baseline -->
+  <g filter="url(#sh)">
+    <rect x="262" y="398" width="170" height="82" rx="14" fill="url(#gCard)" stroke="rgba(139,92,246,0.5)" stroke-width="1.5"/>
+    <text x="347" y="426" class="label" text-anchor="middle">2. Read Baseline</text>
+    <text x="347" y="443" class="sub"   text-anchor="middle">Snapshot current</text>
+    <text x="347" y="460" class="sub"   text-anchor="middle">metrics.json (Champion)</text>
+  </g>
+
+  <!-- Node M3 — Fine-tune DeBERTa -->
+  <g filter="url(#sh)">
+    <rect x="476" y="398" width="170" height="82" rx="14" fill="url(#gBlue)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+    <text x="561" y="426" class="label" text-anchor="middle">3. Fine-tune Model</text>
+    <text x="561" y="443" class="sub"   text-anchor="middle">train_absa_model.py</text>
+    <text x="561" y="460" class="sub"   text-anchor="middle">8 epochs, class weights</text>
+  </g>
+
+  <!-- Node M4 — Gate (diamond) -->
+  <g filter="url(#sh)">
+    <polygon points="734,439 779,407 824,439 779,471" fill="url(#gOrange)" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+    <text x="779" y="435" class="badge" text-anchor="middle">Champion</text>
+    <text x="779" y="450" class="badge" text-anchor="middle">vs.</text>
+    <text x="779" y="465" class="badge" text-anchor="middle">Challenger</text>
+  </g>
+
+  <!-- Node M5a — Deploy (YES) -->
+  <g filter="url(#sh)" filter="url(#glow)">
+    <rect x="893" y="398" width="170" height="82" rx="14" fill="url(#gGreen)" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+    <text x="978" y="422" class="label" text-anchor="middle">✅ Deploy</text>
+    <text x="978" y="440" class="sub"   text-anchor="middle">upload_to_hub.py</text>
+    <text x="978" y="457" class="sub"   text-anchor="middle">HuggingFace Hub push</text>
+    <text x="978" y="474" class="sub"   text-anchor="middle">New Champion born</text>
+  </g>
+
+  <!-- Node M5b — Skip (NO) -->
+  <g filter="url(#sh)">
+    <rect x="893" y="537" width="170" height="70" rx="14" fill="url(#gRed)" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"/>
+    <text x="978" y="560" class="label" text-anchor="middle">🚫 Skip Upload</text>
+    <text x="978" y="578" class="sub"   text-anchor="middle">F1 gate failed /</text>
+    <text x="978" y="593" class="sub"   text-anchor="middle">Old model kept live</text>
+  </g>
+
+  <!-- Node M6 — Update schedule -->
+  <g filter="url(#sh)">
+    <rect x="1110" y="503" width="148" height="70" rx="14" fill="url(#gCard)" stroke="rgba(139,92,246,0.4)" stroke-width="1.5"/>
+    <text x="1184" y="528" class="label" text-anchor="middle">6. Save State</text>
+    <text x="1184" y="546" class="sub"   text-anchor="middle">schedule.json</text>
+    <text x="1184" y="563" class="sub"   text-anchor="middle">next_monthly_run set</text>
+  </g>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- MONTHLY ARROWS                                                 -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <line x1="218" y1="439" x2="258" y2="439" stroke="#8B5CF6" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="432" y1="439" x2="472" y2="439" stroke="#8E8E93" stroke-width="2.5" marker-end="url(#arr)"/>
+  <line x1="646" y1="439" x2="730" y2="439" stroke="#8E8E93" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- Gate YES → Deploy -->
+  <line x1="824" y1="439" x2="889" y2="439" stroke="#34C759" stroke-width="2.5" marker-end="url(#arrGreen)"/>
+  <text x="856" y="432" class="edge-lbl" fill="#34C759" text-anchor="middle">YES</text>
+
+  <!-- Gate NO → Skip -->
+  <path d="M779,471 L779,572 L889,572" stroke="#FF3B30" stroke-width="2.5" fill="none" marker-end="url(#arrRed)"/>
+  <text x="820" y="590" class="edge-lbl" fill="#FF3B30" text-anchor="middle">NO</text>
+
+  <!-- Deploy → Save State -->
+  <path d="M1063,439 L1095,439 L1095,503 L1106,503" stroke="#34C759" stroke-width="2" fill="none" marker-end="url(#arrGreen)"/>
+
+  <!-- Skip → Save State -->
+  <path d="M1063,572 L1095,572 L1095,555 L1106,555" stroke="#FF3B30" stroke-width="2" fill="none" marker-end="url(#arrRed)"/>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- VERTICAL: ABSA Dataset feeds into monthly training            -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- From ABSA store (node 6 weekly, bottom of rect) down to M3 (top of rect) -->
+  <path d="M561,250 L561,304 L561,394" stroke="rgba(52,199,89,0.6)" stroke-width="2" fill="none" stroke-dasharray="6,4" marker-end="url(#arrGreen)"/>
+  <text x="575" y="330" class="edge-lbl" fill="#34C759">Monthly</text>
+  <text x="575" y="345" class="edge-lbl" fill="#34C759">feed-in</text>
+
+  <!-- Accumulation annotation box -->
+  <rect x="448" y="295" width="230" height="54" rx="10" fill="rgba(52,199,89,0.08)" stroke="rgba(52,199,89,0.3)" stroke-width="1.5"/>
+  <text x="563" y="315" class="sub" fill="#34C759" text-anchor="middle">4 weekly runs accumulate data</text>
+  <text x="563" y="332" class="sub" fill="#34C759" text-anchor="middle">→ full monthly ABSA corpus ready</text>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- Save State loopback annotation                               -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <path d="M1184,573 L1184,655 L133,655 L133,480" stroke="rgba(139,92,246,0.35)" stroke-width="1.5" fill="none" stroke-dasharray="5,5" marker-end="url(#arr)"/>
+  <text x="640" y="672" class="edge-lbl" fill="#8B5CF6" text-anchor="middle">Reset cycle → next_monthly_run scheduled → loop repeats</text>
+
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <!-- Force gate label                                              -->
+  <!-- ══════════════════════════════════════════════════════════════ -->
+  <text x="779" y="493" class="sub" fill="#FF9F0A" text-anchor="middle">F1 hard gate</text>
+  <text x="779" y="508" class="sub" fill="#FF9F0A" text-anchor="middle">+ 2/3 metrics must ↑</text>
+
+</svg>

@@ -56,5 +56,29 @@ def upload_model():
     except Exception as e:
         print(f"\n❌ Upload failed: {e}")
 
+def upload_model_programmatic(hf_token: str, repo_id: str, local_folder: str = "outputs/fine_tuned_absa_model") -> bool:
+    """Non-interactive upload function intended for automated pipelines."""
+    try:
+        import logging
+        logger = logging.getLogger("HF_Uploader")
+        logger.info(f"Uploading model to {repo_id}...")
+        
+        login(token=hf_token, add_to_git_credential=False)
+        api = HfApi()
+        api.create_repo(repo_id=repo_id, exist_ok=True)
+        
+        api.upload_folder(
+            folder_path=local_folder,
+            repo_id=repo_id,
+            repo_type="model"
+        )
+        logger.info(f"✅ Successfully uploaded to {repo_id}")
+        return True
+    except Exception as e:
+        import logging
+        logger = logging.getLogger("HF_Uploader")
+        logger.error(f"❌ Upload failed: {e}")
+        return False
+
 if __name__ == "__main__":
     upload_model()
