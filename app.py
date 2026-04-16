@@ -23,6 +23,13 @@ try:
 except ImportError:
     MFG_TRANS_AVAILABLE = False
 
+try:
+    import spacy as _spacy
+    _spacy_nlp = _spacy.load("en_core_web_sm")
+    SPACY_AVAILABLE = True
+except Exception:
+    SPACY_AVAILABLE = False
+
 import re
 import time
 import pymongo
@@ -1161,7 +1168,7 @@ def _mfg_run_pipeline(raw_df, model_col, review_col, date_col, progress_bar, sta
     df.loc[df.duplicated(subset=["model","_norm"], keep="first"), "final"] = np.nan
     df.drop(columns=["_norm"], inplace=True)
 
-    status_text.markdown("**Step 3/4** — Running sentiment model…")
+    status_text.markdown("**Step 3/4** — Extracting aspects (ABSA)…")
     progress_bar.progress(45)
     clf = _mfg_load_classifier()
     valid_mask = df["final"].notna() & (df["final"] != "")
@@ -1170,18 +1177,79 @@ def _mfg_run_pipeline(raw_df, model_col, review_col, date_col, progress_bar, sta
     df.loc[valid_mask, "sentiment_label"]      = [s[0] for s in sentiments]
     df.loc[valid_mask, "sentiment_confidence"] = [s[1] for s in sentiments]
 
-    status_text.markdown("**Step 4/4** — Extracting aspects (ABSA)…")
+    status_text.markdown("**Step 4/4** — Running sentiment model (aspect-conditioned)…")
     progress_bar.progress(75)
     absa_rows = []
-    for _, row in df[valid_mask].iterrows():
-        text    = row["final"]
-        model   = row["model"]
-        clauses = _mfg_split_clauses(text) or [text]
-        c_results = _mfg_run_sentiment(clauses, clf) if clf else [(row.get("sentiment_label","Neutral"), 0.5)]*len(clauses)
-        for clause, (s_label, s_conf) in zip(clauses, c_results):
-            absa_rows.append({"model": model, "text": clause,
-                              "aspect": _mfg_detect_aspect(clause),
-                              "label": s_label, "confidence": s_conf})
+
+    if SPACY_AVAILABLE:
+        # Build a flat keyword → canonical aspect name lookup (from MFG_ASPECT_KEYWORDS)
+        _kw_to_aspect = {}
+        for _asp, _kws in MFG_ASPECT_KEYWORDS.items():
+            for _kw in _kws:
+                if _kw not in _kw_to_aspect:   # first definition wins
+                    _kw_to_aspect[_kw] = _asp
+
+        for _, row in df[valid_mask].iterrows():
+            text  = row["final"]
+            model = row["model"]
+            doc   = _spacy_nlp(text)
+
+            for sent in doc.sents:
+                sent_text = sent.text.strip()
+                if not sent_text:
+                    continue
+                t_lower = sent_text.lower()
+
+                # Find every aspect whose keywords appear in this sentence
+                matched = {}
+                for kw, asp in _kw_to_aspect.items():
+                    if kw in t_lower and asp not in matched:
+                        matched[asp] = True
+
+                if not matched:
+                    continue  # sentence mentions no tracked aspect → skip
+
+                # Run the sentiment model ONCE per sentence (not per aspect)
+                if clf:
+                    try:
+                        res     = clf([sent_text], truncation=True, max_length=512)[0]
+                        s_label = _mfg_map_label(res["label"])
+                        s_conf  = round(res["score"], 4)
+                    except Exception:
+                        s_label = row.get("sentiment_label", "Neutral") or "Neutral"
+                        s_conf  = 0.5
+                else:
+                    s_label = row.get("sentiment_label", "Neutral") or "Neutral"
+                    s_conf  = 0.5
+
+                # Emit one row per (sentence, aspect) pair
+                for asp in matched:
+                    absa_rows.append({
+                        "model":      model,
+                        "text":       sent_text,
+                        "aspect":     asp,
+                        "label":      s_label,
+                        "confidence": s_conf,
+                    })
+    else:
+        # ── Fallback: original clause-split + keyword matching ──────────────
+        for _, row in df[valid_mask].iterrows():
+            text    = row["final"]
+            model   = row["model"]
+            clauses = _mfg_split_clauses(text) or [text]
+            c_results = (
+                _mfg_run_sentiment(clauses, clf)
+                if clf
+                else [(row.get("sentiment_label", "Neutral") or "Neutral", 0.5)] * len(clauses)
+            )
+            for clause, (s_label, s_conf) in zip(clauses, c_results):
+                absa_rows.append({
+                    "model":      model,
+                    "text":       clause,
+                    "aspect":     _mfg_detect_aspect(clause),
+                    "label":      s_label,
+                    "confidence": s_conf,
+                })
 
     if date_col and "date" in df.columns:
         try:

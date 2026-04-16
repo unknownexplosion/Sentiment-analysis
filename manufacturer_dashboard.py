@@ -340,8 +340,8 @@ def run_full_pipeline(df_raw: pd.DataFrame, model_col: str, review_col: str, dat
     df.loc[dup, "final"] = np.nan
     df.drop(columns=["_norm"], inplace=True)
 
-    # ── Step 3: Sentiment ──
-    status_text.markdown("**Step 3/4** — Running sentiment model (`unknownexplosion/SentimentAnalysisog`)…")
+    # ── Step 3: ABSA ──
+    status_text.markdown("**Step 3/4** — Extracting aspects (ABSA)…")
     progress_bar.progress(45)
     classifier = load_classifier()
     valid_mask = df["final"].notna() & (df["final"] != "")
@@ -351,8 +351,8 @@ def run_full_pipeline(df_raw: pd.DataFrame, model_col: str, review_col: str, dat
     df.loc[valid_mask, "sentiment_label"]      = [s[0] for s in sentiments]
     df.loc[valid_mask, "sentiment_confidence"] = [s[1] for s in sentiments]
 
-    # ── Step 4: ABSA ──
-    status_text.markdown("**Step 4/4** — Extracting aspects (ABSA)…")
+    # ── Step 4: Sentiment ──
+    status_text.markdown("**Step 4/4** — Running sentiment model (aspect-conditioned)…")
     progress_bar.progress(75)
 
     absa_rows = []
