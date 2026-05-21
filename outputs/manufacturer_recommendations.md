@@ -2,137 +2,137 @@
 
 ## Model: Apple MacBook AIR Apple M2
 6.1 Summary
-The overall sentiment for Apple MacBook AIR Apple M2 is overwhelmingly positive. Analysis shows a breakdown of 85.29% Positive, 5.88% Negative, and 6.86% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for Apple MacBook AIR Apple M2 is overwhelmingly positive. Analysis shows a breakdown of 93.0% Positive, 4.0% Negative, and 3.0% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: macbook, battery, performance, first, apple, windows.
+Customers praised: Camera (100.0% positive, 6 mentions); Audio (100.0% positive, 9 mentions); Display (88.24% positive, 17 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: her, first, windows, apple, usage, laptops.
+Critical areas for improvement include recurring complaints focused on: Heating / Thermals (33.33% negative, 3 mentions); Storage (25.0% negative, 8 mentions); Battery (16.13% negative, 31 mentions).
 
 6.4 Actionable Recommendations
+- Technical: Optimize background process management to extend battery life.
+- Engineering: Improve thermal management to reduce overheating during intensive tasks.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
-- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Apple MacBook AIR Apple M1
 6.1 Summary
-The overall sentiment for Apple MacBook AIR Apple M1 is generally positive. Analysis shows a breakdown of 72.53% Positive, 14.24% Negative, and 10.24% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for Apple MacBook AIR Apple M1 is generally positive. Analysis shows a breakdown of 74.73% Positive, 18.24% Negative, and 7.03% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: macbook, apple, love, battery, air, computer.
+Customers praised: Performance (63.91% positive, 956 mentions); Battery (62.92% positive, 472 mentions); Audio (61.48% positive, 135 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: apple, macbook, computer, screen, they, new.
+Critical areas for improvement include recurring complaints focused on: Camera (30.54% negative, 203 mentions); Display (29.63% negative, 432 mentions); Connectivity (29.55% negative, 44 mentions).
 
 6.4 Actionable Recommendations
 - Quality Control: Investigate display panel durability and consider stronger protective glass.
+- Product: Refine image processing algorithms for better low-light performance.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
 
 ---
 
 ## Model: Apple iPhone XR (64GB) - Black
 6.1 Summary
-The overall sentiment for Apple iPhone XR (64GB) - Black is mixed. Analysis shows a breakdown of 40.18% Positive, 11.7% Negative, and 3.89% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for Apple iPhone XR (64GB) - Black is generally positive. Analysis shows a breakdown of 70.46% Positive, 21.95% Negative, and 7.59% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: iphone, apple, awesome, battery, price, excellent.
+Customers praised: Price (80.69% positive, 202 mentions); Storage (73.33% positive, 15 mentions); Software & OS (71.84% positive, 103 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: iphone, amazon, apple, bad, working, worst.
+Critical areas for improvement include recurring complaints focused on: Heating / Thermals (79.17% negative, 24 mentions); Connectivity (75.0% negative, 12 mentions); Display (60.0% negative, 35 mentions).
 
 6.4 Actionable Recommendations
+- Quality Control: Investigate display panel durability and consider stronger protective glass.
+- Engineering: Improve thermal management to reduce overheating during intensive tasks.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
-- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Apple iPhone 14
 6.1 Summary
-The overall sentiment for Apple iPhone 14 is overwhelmingly positive. Analysis shows a breakdown of 86.25% Positive, 3.95% Negative, and 6.78% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for Apple iPhone 14 is overwhelmingly positive. Analysis shows a breakdown of 89.13% Positive, 4.66% Negative, and 6.21% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: performance, camera, excellent, quality, smooth, overall.
+Customers praised: Storage (100.0% positive, 3 mentions); Audio (100.0% positive, 13 mentions); Camera (95.31% positive, 128 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: battery, during, service, performance, health, within.
+Critical areas for improvement include recurring complaints focused on: Heating / Thermals (54.55% negative, 11 mentions); Connectivity (40.0% negative, 5 mentions); Battery (17.86% negative, 56 mentions).
 
 6.4 Actionable Recommendations
 - Technical: Optimize background process management to extend battery life.
-- Trust: Expand customer support availability and reduce response times.
+- Engineering: Improve thermal management to reduce overheating during intensive tasks.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
 
 ---
 
 ## Model: iphone15_pro
 6.1 Summary
-The overall sentiment for iphone15_pro is generally positive. Analysis shows a breakdown of 69.89% Positive, 10.75% Negative, and 15.05% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for iphone15_pro is overwhelmingly positive. Analysis shows a breakdown of 76.4% Positive, 16.85% Negative, and 6.74% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: iphone, camera, battery, performance, quality, display.
+Customers praised: Audio (100.0% positive, 7 mentions); Storage (81.82% positive, 11 mentions); Camera (74.55% positive, 55 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: iphone, bought, within, same, received, amazon.
+Critical areas for improvement include recurring complaints focused on: Heating / Thermals (41.67% negative, 12 mentions); Connectivity (33.33% negative, 3 mentions); Software & OS (22.86% negative, 70 mentions).
 
 6.4 Actionable Recommendations
+- Engineering: Improve thermal management to reduce overheating during intensive tasks.
+- Software: Prioritize bug fixes and stability improvements in upcoming OS updates.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
-- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: iphone11
 6.1 Summary
-The overall sentiment for iphone11 is generally positive. Analysis shows a breakdown of 51.32% Positive, 6.88% Negative, and 6.5% Neutral sentiment. High review volume with diverse opinions.
+The overall sentiment for iphone11 is overwhelmingly positive. Analysis shows a breakdown of 80.12% Positive, 12.85% Negative, and 7.02% Neutral sentiment. High review volume with diverse opinions.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: iphone, read, camera, awesome, nice, battery.
+Customers praised: General (79.57% positive, 7430 mentions); Performance (78.43% positive, 1270 mentions); Price (77.36% positive, 711 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: battery, camera, iphone, bad, flipkart, dont.
+Critical areas for improvement include recurring complaints focused on: Heating / Thermals (62.01% negative, 229 mentions); Connectivity (33.7% negative, 92 mentions); Audio (30.34% negative, 145 mentions).
 
 6.4 Actionable Recommendations
-- Technical: Optimize background process management to extend battery life.
-- Product: Refine image processing algorithms for better low-light performance.
+- Engineering: Improve thermal management to reduce overheating during intensive tasks.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
+- Engagement: packaging enhancements to create a more premium unboxing experience.
 
 ---
 
 ## Model: Macbook M3 Pro
 6.1 Summary
-The overall sentiment for Macbook M3 Pro is overwhelmingly positive. Analysis shows a breakdown of 95.0% Positive, 0.0% Negative, and 5.0% Neutral sentiment. Low to moderate volume—insights may be limited.
+The overall sentiment for Macbook M3 Pro is overwhelmingly positive. Analysis shows a breakdown of 92.5% Positive, 2.5% Negative, and 5.0% Neutral sentiment. Low to moderate volume—insights may be limited.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: without, excellent, perfect, performance, work, everything.
+Customers praised: Software & OS (100.0% positive, 15 mentions); Audio (100.0% positive, 4 mentions); Connectivity (100.0% positive, 4 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include No specific complaint themes detected.
+Critical areas for improvement include recurring complaints focused on: Camera (33.33% negative, 3 mentions); Display (14.29% negative, 7 mentions).
 
 6.4 Actionable Recommendations
+- Quality Control: Investigate display panel durability and consider stronger protective glass.
+- Product: Refine image processing algorithms for better low-light performance.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
-- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 
 ## Model: Macbook M4 Pro
 6.1 Summary
-The overall sentiment for Macbook M4 Pro is mixed. Analysis shows a breakdown of 43.59% Positive, 25.64% Negative, and 30.77% Neutral sentiment. Low to moderate volume—insights may be limited.
+The overall sentiment for Macbook M4 Pro is mixed. Analysis shows a breakdown of 46.15% Positive, 23.08% Negative, and 30.77% Neutral sentiment. Low to moderate volume—insights may be limited.
 
 6.2 Strengths
-Customers frequently praised key aspects such as: pro, work, still, without, machine, video.
+Customers praised: Audio (100.0% positive, 4 mentions); Camera (75.0% positive, 4 mentions); Performance (73.33% positive, 15 mentions).
 
 6.3 Weaknesses
-Critical areas for improvement include recurring complaints focused on: base, model, ram, pro, first, unit.
+Critical areas for improvement include recurring complaints focused on: Display (66.67% negative, 6 mentions); Connectivity (50.0% negative, 2 mentions); Price (42.86% negative, 7 mentions).
 
 6.4 Actionable Recommendations
+- Quality Control: Investigate display panel durability and consider stronger protective glass.
+- Marketing: Emphasize long-term value and premium build quality to justify pricing.
 - Marketing: Highlight the most praised features (Strengths) in upcoming ad campaigns.
-- Engagement: packaging enhancements to create a more premium unboxing experience.
-- Trust: Respond publicly to constructive negative reviews to show brand accountability.
 
 ---
 

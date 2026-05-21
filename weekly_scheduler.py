@@ -16,6 +16,7 @@ Or just check the next scheduled run:
   python weekly_scheduler.py --status
 """
 
+import patch_transformers
 import argparse
 import logging
 import time
@@ -87,12 +88,19 @@ def run_weekly_job():
 
         # Step 2 — Run pipeline
         if new_df is not None and len(new_df) > 0:
-            logger.info(f"Step 2/2 — Running sentiment pipeline on {len(new_df)} new posts…")
-            success = run_pipeline_on_new_data(new_df)
-            if success:
-                logger.info("✅ Weekly job completed successfully!")
+            from reddit_scraper import run_retraining_pipeline_on_new_data
+            logger.info(f"Step 2a/2 — Running production sentiment pipeline on {len(new_df)} new posts…")
+            success_prod = run_pipeline_on_new_data(new_df)
+            
+            logger.info("Step 2b/2 — Running retraining sentiment pipeline (nlptown teacher)…")
+            success_train = run_retraining_pipeline_on_new_data(new_df)
+            
+            if success_prod and success_train:
+                logger.info("✅ Weekly job completed successfully (both pipelines run)!")
+            elif success_prod:
+                logger.warning("⚠️ Production pipeline succeeded but retraining pipeline failed.")
             else:
-                logger.error("⚠️ Pipeline failed — scraped data saved but not analysed.")
+                logger.error("⚠️ Pipelines failed — scraped data saved but not fully analysed.")
         else:
             logger.info("No new data this week. Skipping pipeline.")
 
@@ -226,7 +234,7 @@ def run_monthly_retraining_job():
         secrets = toml.load(".streamlit/secrets.toml")
         hf_config = secrets.get("huggingface", {})
         hf_token  = hf_config.get("token")
-        repo_id   = hf_config.get("repo_id", "unknownexplosion/SentimentAnalysisog")
+        repo_id   = hf_config.get("repo_id", "unknownexplosion/SentimentABSA-v3")
 
         if not hf_token:
             logger.error("⚠️ Hugging Face token not found in .streamlit/secrets.toml. Skipping upload.")
@@ -279,29 +287,76 @@ def print_status():
     print()
 
 
+def get_scheduled_runs(state: dict) -> tuple[datetime, datetime]:
+    """Parse scheduled run times or compute them if not set."""
+    # Weekly run
+    next_week_str = state.get("next_run")
+    if next_week_str:
+        try:
+            if next_week_str.endswith("Z"):
+                next_week_str = next_week_str[:-1]
+            if "+" in next_week_str:
+                next_week_str = next_week_str.split("+")[0]
+            nxt_week = datetime.fromisoformat(next_week_str)
+        except Exception:
+            nxt_week = next_sunday()
+            state["next_run"] = nxt_week.isoformat()
+            save_schedule(state)
+    else:
+        nxt_week = next_sunday()
+        state["next_run"] = nxt_week.isoformat()
+        save_schedule(state)
+        
+    # Monthly run
+    next_month_str = state.get("next_monthly_run")
+    if next_month_str:
+        try:
+            if next_month_str.endswith("Z"):
+                next_month_str = next_month_str[:-1]
+            if "+" in next_month_str:
+                next_month_str = next_month_str.split("+")[0]
+            nxt_month = datetime.fromisoformat(next_month_str)
+        except Exception:
+            nxt_month = next_month()
+            state["next_monthly_run"] = nxt_month.isoformat()
+            save_schedule(state)
+    else:
+        nxt_month = next_month()
+        state["next_monthly_run"] = nxt_month.isoformat()
+        save_schedule(state)
+        
+    return nxt_week, nxt_month
+
+
 def run_scheduler_loop():
     """
-    Infinite loop that checks every minute if it's time to run.
-    Keep this running in a background terminal or as a cron job.
+    Infinite loop that checks if it's time to run.
+    Uses persistent state to prevent infinite wait conditions or overshoot.
     """
     logger.info("🔄 Scheduler started. Press Ctrl+C to stop.")
-    logger.info(f"   Next weekly run: {next_sunday().strftime('%A %Y-%m-%d at %H:%M')}")
-    logger.info(f"   Next monthly run: {next_month().strftime('%A %Y-%m-%d at %H:%M')}")
+    
+    state = load_schedule()
+    nxt_week, nxt_month_time = get_scheduled_runs(state)
+    
+    logger.info(f"   Next weekly run: {nxt_week.strftime('%A %Y-%m-%d at %H:%M')}")
+    logger.info(f"   Next monthly run: {nxt_month_time.strftime('%A %Y-%m-%d at %H:%M')}")
 
     while True:
-        now  = datetime.now()
-        nxt_week  = next_sunday()
-        nxt_month_time = next_month()
+        now = datetime.now()
+        state = load_schedule()
+        nxt_week, nxt_month_time = get_scheduled_runs(state)
         
         wait_week = (nxt_week - now).total_seconds()
         wait_month = (nxt_month_time - now).total_seconds()
 
         executed = False
         if wait_week <= 0:
+            logger.info("⏰ Time to run weekly scraping job!")
             run_weekly_job()
             executed = True
             
         if wait_month <= 0:
+            logger.info("🧠 Time to run monthly model retraining job!")
             run_monthly_retraining_job()
             executed = True
             
@@ -310,12 +365,13 @@ def run_scheduler_loop():
         else:
             closest_wait = min(wait_week, wait_month)
             hours_left = closest_wait / 3600
-            if hours_left > 24:
-                logger.info(f"⏳ Next task in {hours_left/24:.1f} days. Sleeping 1 hour…")
+            if hours_left > 1.0:
+                logger.info(f"⏳ Next task in {hours_left:.2f} hours. Sleeping 1 hour…")
                 time.sleep(3600)
             else:
-                logger.info(f"⏳ Next task in {hours_left:.1f} hours. Sleeping 15 minutes…")
-                time.sleep(900)
+                logger.info(f"⏳ Next task in {hours_left*60:.1f} minutes. Sleeping 60 seconds…")
+                time.sleep(60)
+
 
 
 if __name__ == "__main__":

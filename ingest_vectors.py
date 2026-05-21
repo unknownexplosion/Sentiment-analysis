@@ -70,13 +70,14 @@ def ingest_data():
     for i in tqdm(range(0, total_reviews, BATCH_SIZE), desc="Generating Embeddings"):
         batch = df.iloc[i : i + BATCH_SIZE]
         
-        # Robust filtering: ensure string and non-empty
-        valid_batch = batch[batch['final_review'].astype(str).str.strip().astype(bool)]
+        # Use sentence-level text for more precise embeddings (ABSA schema)
+        text_col = 'sentence' if 'sentence' in batch.columns else 'final_review'
+        valid_batch = batch[batch[text_col].astype(str).str.strip().astype(bool)]
         
         if valid_batch.empty:
             continue
 
-        texts = valid_batch['final_review'].astype(str).tolist()
+        texts = valid_batch[text_col].astype(str).tolist()
         
         try:
             # Generate Embeddings (Batch)
@@ -93,19 +94,19 @@ def ingest_data():
                 # Map back to original row using implicit order (valid_batch is aligned with texts)
                 row = valid_batch.iloc[index]
                 
-                # Create Document
+                # Create Document (ABSA-aware)
                 doc = {
                     "review_text": text,
                     "embedding": vector,
                     "model": row.get("model", "Unknown"),
+                    "aspect": row.get("aspect", "General"),
                     "sentiment_label": row.get("sentiment_label", "Neutral"),
-                    "sentiment_score": float(row.get("sentiment_score", 0.0)),
+                    "confidence": float(row.get("confidence", 0.0)),
                     "original_index": int(i + index)
                 }
                 
-                # Upsert based on original_index (or unique review signature if available)
-                # Using original_index + model as unique constraint proxy
-                filter_query = {"original_index": doc["original_index"], "model": doc["model"]}
+                # Upsert using model + aspect + text as unique constraint
+                filter_query = {"original_index": doc["original_index"], "model": doc["model"], "aspect": doc["aspect"]}
                 operations.append(UpdateOne(filter_query, {"$set": doc}, upsert=True))
 
         except Exception as e:

@@ -1,1 +1,1 @@
-{"epoch": 1.0, "total_epochs": 8, "train_loss": 0, "learning_rate": 0, "eval_loss": 0.5313909649848938, "eval_accuracy": 0.8192771084337349, "eval_f1": 0.8350579558494398, "eval_precision": 0.8725129178891692}
+{"epoch": 8.0, "total_epochs": 8, "train_loss": 0.1872, "learning_rate": 2e-05, "eval_loss": 0.7796, "eval_accuracy": 0.8839, "eval_f1": 0.883, "eval_precision": 0.8826}

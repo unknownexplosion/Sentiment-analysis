@@ -1,3 +1,4 @@
+import patch_transformers
 import os
 import pandas as pd
 import torch
@@ -10,7 +11,7 @@ import json
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-HF_MODEL = "unknownexplosion/SentimentAnalysisog"
+HF_MODEL = "unknownexplosion/SentimentABSA-v3"
 DATA_PATH = "outputs/absa_training_dataset.csv"
 MAX_LEN = 128
 BATCH_SIZE = 16

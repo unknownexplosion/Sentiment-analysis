@@ -1,25 +1,29 @@
 {
-  "phase": "training",
+  "phase": "done",
   "error": null,
-  "scraped_count": 5,
+  "scraped_count": 804,
   "sub_counts": {
-    "iPhone": 2,
-    "applehelp": 2,
-    "appleswap": 1
+    "iPhone": 72,
+    "MacOS": 71,
+    "Mac": 69,
+    "iPad": 66,
+    "AppleWatch": 65,
+    "applehelp": 63,
+    "AirPods": 61,
+    "AppleMusic": 61,
+    "iphonehelp": 60,
+    "AppleIndia": 55,
+    "AppleWhatShouldIBuy": 52,
+    "iOSProgramming": 36,
+    "apple": 32,
+    "appleswap": 29,
+    "applesucks": 12
   },
-  "baseline_metrics": {
-    "eval_loss": 1.3918840885162354,
-    "eval_accuracy": 0.8892921960072595,
-    "eval_f1": 0.8850253311516403,
-    "eval_precision": 0.883977707695,
-    "eval_recall": 0.8892921960072595,
-    "eval_runtime": 21.4183,
-    "eval_samples_per_second": 51.451,
-    "eval_steps_per_second": 3.222,
-    "epoch": 8.0
-  },
+  "baseline_metrics": {},
   "new_metrics": {},
-  "initial_dataset_size": 5803,
+  "initial_dataset_size": 13959,
   "scraped_csv": "outputs/scraped/reddit_reviews_all.csv",
-  "week_csv": "outputs/scraped/reddit_2026-W16.csv"
+  "week_csv": "outputs/scraped/reddit_2026-W21.csv",
+  "heartbeat": "2026-05-19T20:06:46.641199+00:00",
+  "run_type": "scrape"
 }

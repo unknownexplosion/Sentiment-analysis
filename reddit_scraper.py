@@ -438,8 +438,7 @@ def run_pipeline_on_new_data(new_df: pd.DataFrame) -> bool:
             preprocess_reviews,
             translate_and_clean,
             handle_duplicates,
-            analyze_sentiment,
-            generate_absa_dataset,
+            analyze_sentiment_absa,
         )
         import sys
 
@@ -451,36 +450,93 @@ def run_pipeline_on_new_data(new_df: pd.DataFrame) -> bool:
             df  = preprocess_reviews(df)
             df  = translate_and_clean(df)
             df  = handle_duplicates(df)
-            df, clf = analyze_sentiment(df)
-            absa_df = generate_absa_dataset(df, clf)
+            absa_df, clf = analyze_sentiment_absa(df)
         finally:
             sys.stdout = old_stdout
             devnull.close()
 
-        # Append to sentiment_output.csv
+        # Append to sentiment_output.csv (now ABSA format)
         out_csv = Path("outputs/sentiment_output.csv")
-        if out_csv.exists():
+        if out_csv.exists() and not absa_df.empty:
             existing = pd.read_csv(out_csv)
-            pd.concat([existing, df], ignore_index=True).drop_duplicates(
-                subset=["model", "final_review"], keep="last"
+            pd.concat([existing, absa_df], ignore_index=True).drop_duplicates(
+                subset=["model", "sentence", "aspect"], keep="last"
             ).to_csv(out_csv, index=False)
-        else:
-            df.to_csv(out_csv, index=False)
+        elif not absa_df.empty:
+            absa_df.to_csv(out_csv, index=False)
 
-        # Append to ABSA dataset
-        if not absa_df.empty:
+        # Append to ABSA training dataset (aspect != "General")
+        training_df = absa_df[absa_df['aspect'] != 'General'].copy() if not absa_df.empty else pd.DataFrame()
+        if not training_df.empty:
+            train_export = training_df.rename(columns={
+                'sentence': 'text',
+                'sentiment_label': 'label',
+                'model': 'model_name',
+            })[['text', 'aspect', 'label', 'confidence', 'model_name']]
+
             absa_csv = Path("outputs/absa_training_dataset.csv")
             if absa_csv.exists():
-                pd.concat([pd.read_csv(absa_csv), absa_df], ignore_index=True).to_csv(absa_csv, index=False)
+                pd.concat([pd.read_csv(absa_csv), train_export], ignore_index=True).to_csv(absa_csv, index=False)
             else:
-                absa_df.to_csv(absa_csv, index=False)
+                train_export.to_csv(absa_csv, index=False)
 
-        logger.info(f"✅  Pipeline complete — {len(df)} reviews, {len(absa_df)} ABSA rows")
+        n_reviews = absa_df['review_id'].nunique() if not absa_df.empty else 0
+        logger.info(f"✅  Pipeline complete — {n_reviews} reviews, {len(absa_df)} ABSA rows")
         return True
 
     except Exception as e:
         logger.error(f"Pipeline failed: {e}")
         return False
+
+
+def run_retraining_pipeline_on_new_data(new_df: pd.DataFrame) -> bool:
+    """
+    After scraping, run the retraining sentiment labeling pipeline (using nlptown teacher model)
+    on new data and append results to outputs/absa_training_dataset.csv.
+    Does NOT affect the production outputs/sentiment_output.csv.
+    """
+    logger.info("Running retraining-specific sentiment pipeline on scraped data (nlptown teacher)...")
+    try:
+        from nlpbert_labeler import label_with_nlptown
+        import sys
+
+        # Format input dataframe
+        df = new_df[["model", "original_review"]].copy()
+
+        # Suppress outputs to devnull
+        old_stdout = sys.stdout
+        devnull = open(os.devnull, "w")
+        try:
+            sys.stdout = devnull
+            labeled_df = label_with_nlptown(df)
+        finally:
+            sys.stdout = old_stdout
+            devnull.close()
+
+        if labeled_df.empty:
+            logger.info("No training data generated (likely no valid aspect clauses detected).")
+            return True
+
+        # Append to outputs/absa_training_dataset.csv
+        absa_csv = Path("outputs/absa_training_dataset.csv")
+        if absa_csv.exists():
+            existing = pd.read_csv(absa_csv)
+            # Combine and deduplicate based on text + aspect
+            combined_df = pd.concat([existing, labeled_df], ignore_index=True)
+            combined_df.drop_duplicates(subset=["text", "aspect"], keep="last").to_csv(absa_csv, index=False)
+            logger.info(f"✅ Appended to existing {absa_csv}. Unique rows in dataset now: {len(combined_df.drop_duplicates(subset=['text', 'aspect']))}")
+        else:
+            absa_csv.parent.mkdir(parents=True, exist_ok=True)
+            labeled_df.to_csv(absa_csv, index=False)
+            logger.info(f"✅ Created new {absa_csv} with {len(labeled_df)} rows.")
+
+        logger.info(f"✅ Retraining pipeline complete — {len(labeled_df)} ABSA training rows added.")
+        return True
+
+    except Exception as e:
+        logger.error(f"Retraining pipeline failed: {e}")
+        return False
+
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

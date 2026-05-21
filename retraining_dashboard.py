@@ -11,7 +11,7 @@ Pipeline:
   5. Compare new model metrics vs baseline
   6. Upload to Hugging Face only if improved
 """
-
+import patch_transformers
 import streamlit as st
 import pandas as pd
 import json
@@ -35,6 +35,7 @@ ABSA_CSV        = Path("outputs/absa_training_dataset.csv")
 LOG_FILE        = Path("outputs/retraining_run.log")
 STATUS_FILE     = Path("outputs/retraining_status.json")
 BASELINE_FILE   = Path("outputs/baseline_metrics.json")
+STOP_FILE       = Path("outputs/pipeline_stop.flag")
 
 SUBREDDITS = [
     "apple", "iPhone", "Mac", "iPad", "MacOS", "AppleWatch", "AirPods", "AppleMusic",
@@ -49,54 +50,97 @@ MINIMAL_CSS = """
 
 /* ── Reset / base ── */
 .rtc-wrap * { box-sizing: border-box; }
-.rtc-wrap { font-family: 'Inter', sans-serif; color: #18181b; }
+.rtc-wrap { font-family: 'Inter', sans-serif; color: #E4E4E7; }
 
 /* ── Page header ── */
 .rtc-page-title {
     font-size: 2rem;
     font-weight: 700;
     letter-spacing: -0.025em;
-    color: #09090b;
+    color: #F5F5F7;
     margin: 0 0 2px;
     line-height: 1.2;
 }
 .rtc-page-sub {
     font-size: 0.8rem;
-    color: #71717a;
+    color: #8A8A93;
     font-weight: 400;
     margin: 0;
 }
 
-/* ── Schedule card ── */
+/* ── Schedule grid & cards ── */
+.rtc-sched-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 0;
+}
+@media (max-width: 768px) {
+    .rtc-sched-grid {
+        grid-template-columns: 1fr;
+    }
+}
 .rtc-sched-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 16px;
+    padding: 24px;
     display: flex;
-    gap: 0;
-    background: #fafafa;
-    border: 1px solid #e4e4e7;
-    border-radius: 12px;
-    padding: 0;
-    margin: 18px 0 0;
-    overflow: hidden;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 220px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.rtc-sched-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.35);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+.rtc-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding-bottom: 12px;
+}
+.rtc-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.rtc-card-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 24px;
 }
 .rtc-sched-item {
-    flex: 1;
-    padding: 16px 20px;
-    border-right: 1px solid #e4e4e7;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
-.rtc-sched-item:last-child { border-right: none; }
 .rtc-sched-label {
-    font-size: 0.68rem;
+    font-size: 0.65rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #a1a1aa;
-    margin-bottom: 5px;
+    color: #8A8A93;
 }
 .rtc-sched-value {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #18181b;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #F5F5F7;
     line-height: 1.3;
+}
+.rtc-sched-value.highlight {
+    color: #3B82F6;
+    font-weight: 600;
 }
 .rtc-sched-value.muted { color: #71717a; font-weight: 400; }
 
@@ -105,9 +149,9 @@ MINIMAL_CSS = """
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 10px;
+    padding: 4px 10px;
     border-radius: 6px;
-    font-size: 0.7rem;
+    font-size: 0.68rem;
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -116,96 +160,96 @@ MINIMAL_CSS = """
 .rtc-pill::before {
     content: '';
     display: inline-block;
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: currentColor;
-    opacity: 0.8;
 }
-.pill-idle      { background: #f4f4f5; color: #71717a; }
-.pill-scraping  { background: #fef9c3; color: #854d0e; }
-.pill-training  { background: #dbeafe; color: #1d4ed8; }
-.pill-comparing { background: #f3e8ff; color: #6b21a8; }
-.pill-success   { background: #dcfce7; color: #15803d; }
-.pill-skipped   { background: #fff7ed; color: #9a3412; }
-.pill-error     { background: #fee2e2; color: #991b1b; }
+.pill-idle      { background: rgba(244, 244, 245, 0.08); color: #A1A1AA; }
+.pill-scraping  { background: rgba(254, 249, 195, 0.08); color: #EAB308; }
+.pill-training  { background: rgba(219, 234, 254, 0.08); color: #3B82F6; }
+.pill-comparing { background: rgba(243, 232, 255, 0.08); color: #A855F7; }
+.pill-success   { background: rgba(220, 252, 231, 0.08); color: #22C55E; }
+.pill-skipped   { background: rgba(255, 247, 237, 0.08); color: #F97316; }
+.pill-error     { background: rgba(254, 226, 226, 0.08); color: #EF4444; }
 
 /* ── Section label ── */
 .rtc-step-label {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 28px 0 12px;
+    gap: 10px;
+    margin: 32px 0 14px;
 }
 .rtc-step-num {
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
-    background: #18181b;
-    color: #fff;
-    font-size: 0.65rem;
+    background: rgba(255, 255, 255, 0.08);
+    color: #FFFFFF;
+    font-size: 0.72rem;
     font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.15);
     flex-shrink: 0;
 }
 .rtc-step-title {
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #52525b;
+    color: #A1A1AA;
 }
 
 /* ── Metric comparison table ── */
 .rtc-cmp-header {
     display: grid;
     grid-template-columns: 120px 1fr 50px 1fr;
-    font-size: 0.67rem;
+    font-size: 0.7rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.07em;
-    color: #a1a1aa;
-    padding: 0 0 8px;
-    border-bottom: 1px solid #e4e4e7;
+    color: #71717A;
+    padding: 0 0 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 .rtc-metric-row {
     display: grid;
     grid-template-columns: 120px 1fr 50px 1fr;
     align-items: center;
-    padding: 9px 0;
-    border-bottom: 1px solid #f4f4f5;
-    font-size: 0.84rem;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.86rem;
 }
-.rtc-metric-name { color: #3f3f46; font-weight: 500; }
+.rtc-metric-name { color: #A1A1AA; font-weight: 500; }
 .rtc-metric-val  {
     text-align: center;
     font-weight: 600;
-    color: #09090b;
+    color: #FFFFFF;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
 }
 .rtc-metric-arrow { text-align: center; font-size: 0.95rem; font-weight: 700; }
 
 /* ── Progress bar ── */
-.rtc-prog-wrap { margin: 6px 0 12px; }
+.rtc-prog-wrap { margin: 8px 0 16px; }
 .rtc-prog-track {
-    background: #f4f4f5;
+    background: rgba(255, 255, 255, 0.06);
     border-radius: 9999px;
-    height: 5px;
+    height: 6px;
     overflow: hidden;
 }
 .rtc-prog-fill {
     height: 100%;
     border-radius: 9999px;
-    background: #18181b;
+    background: #3B82F6;
     transition: width 0.6s cubic-bezier(.4,0,.2,1);
 }
 .rtc-prog-caption {
     font-size: 0.72rem;
-    color: #71717a;
-    margin-top: 5px;
+    color: #8A8A93;
+    margin-top: 6px;
 }
 
 /* ── Subreddit rows ── */
@@ -213,33 +257,33 @@ MINIMAL_CSS = """
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 7px 0;
-    border-bottom: 1px solid #f4f4f5;
-    font-size: 0.82rem;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.84rem;
 }
-.rtc-sub-name  { color: #3f3f46; font-weight: 500; }
+.rtc-sub-name  { color: #A1A1AA; font-weight: 500; }
 .rtc-sub-count {
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.78rem;
     font-weight: 600;
-    color: #18181b;
-    background: #f4f4f5;
+    color: #FFFFFF;
+    background: rgba(255, 255, 255, 0.06);
     padding: 2px 8px;
     border-radius: 4px;
 }
 
 /* ── Mini progress bar for subreddits ── */
 .rtc-sub-bar-track {
-    background: #f4f4f5;
+    background: rgba(255, 255, 255, 0.04);
     border-radius: 9999px;
-    height: 3px;
-    margin: 3px 0 0;
+    height: 4px;
+    margin: 4px 0 0;
     overflow: hidden;
 }
 .rtc-sub-bar-fill {
     height: 100%;
     border-radius: 9999px;
-    background: #71717a;
+    background: #3B82F6;
 }
 
 /* ── Terminal log ── */
@@ -263,7 +307,7 @@ MINIMAL_CSS = """
 .rtc-terminal .log-warn{ color: #fbbf24; }
 
 /* ── Divider ── */
-.rtc-hr { border: none; border-top: 1px solid #f4f4f5; margin: 22px 0 0; }
+.rtc-hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.08); margin: 24px 0 0; }
 </style>
 """
 
@@ -284,6 +328,8 @@ def _write_status(update: dict):
     try:
         current = _read_status()
         current.update(update)
+        # Always stamp the heartbeat so the UI can detect dead threads
+        current["heartbeat"] = datetime.now(timezone.utc).isoformat()
         with open(STATUS_FILE, "w") as f:
             json.dump(current, f, indent=2, default=str)
     except Exception:
@@ -321,153 +367,205 @@ def _log(msg: str):
     with open(LOG_FILE, "a") as f:
         f.write(line)
 
+# ─── Stop helpers ─────────────────────────────────────────────────────────────
+
+def _should_stop() -> bool:
+    """Check if the user requested a pipeline stop."""
+    return STOP_FILE.exists()
+
+def _stop_pipeline():
+    """Signal the background thread to stop."""
+    STOP_FILE.parent.mkdir(parents=True, exist_ok=True)
+    STOP_FILE.touch()
+
+def _clear_stop():
+    """Remove the stop flag (called when starting a new run)."""
+    if STOP_FILE.exists():
+        STOP_FILE.unlink()
+
+def _abort_if_stopped(phase_label: str) -> bool:
+    """Check stop flag; if set, log and update status. Returns True if stopped."""
+    if _should_stop():
+        _log(f"🛑  Pipeline stopped by user during: {phase_label}")
+        _write_status({"phase": "error", "error": "Pipeline stopped by user."})
+        _clear_stop()
+        return True
+    return False
+
 # ─── Background pipeline thread ───────────────────────────────────────────────
 
-def _run_pipeline_bg():
+def _run_pipeline_bg(run_type="all"):
     """
-    Runs the full retraining pipeline in a background thread so the
-    Streamlit UI stays responsive.  Writes status to STATUS_FILE and logs
-    to LOG_FILE — the main thread polls both.
+    Runs scraping only, training only, or the full retraining pipeline in a background thread.
+    Writes status to STATUS_FILE and logs to LOG_FILE.
     """
     # Clear old log
     if LOG_FILE.exists():
         LOG_FILE.unlink()
 
-    _write_status({"phase": "scraping", "error": None, "scraped_count": 0, "sub_counts": {}})
-    _log("Pipeline started.")
-    _log("Step 1/4 — Scraping Reddit for Apple product reviews…")
+    _log(f"Pipeline started. Task: {run_type.upper()}")
 
-    # ── 1. Scrape ────────────────────────────────────────────────────────────
-    try:
-        from reddit_scraper import RedditScraper
-        scraper = RedditScraper()
-        new_df = scraper.run()
+    if run_type in ("all", "scrape"):
+        _write_status({"phase": "scraping", "error": None, "scraped_count": 0, "sub_counts": {}})
+        _log("Step 1/2 — Scraping Reddit for Apple product reviews…")
 
-        if new_df is None or len(new_df) == 0:
-            _log("⚠️  No new posts found. Using existing dataset if available.")
-            new_df = None
-        else:
-            sub_counts = new_df["subreddit"].value_counts().to_dict()
-            # Latest weekly file is just the one named with current week number
-            from datetime import datetime as _dt
-            week_file = OUTPUT_DIR / f"reddit_{_dt.now().strftime('%Y-W%V')}.csv"
-            _write_status({
-                "scraped_count": len(new_df),
-                "sub_counts": sub_counts,
-                "scraped_csv": str(SCRAPED_CSV),
-                "week_csv": str(week_file),
-            })
-            _log(f"✅  Scraped {len(new_df)} posts across {new_df['subreddit'].nunique()} subreddits.")
-            for sub, cnt in sub_counts.items():
-                _log(f"   r/{sub}: {cnt} posts")
-
-    except Exception as e:
-        _log(f"❌  Scraping failed: {e}")
-        _write_status({"phase": "error", "error": str(e)})
-        return
-
-    # ── 2. Run sentiment pipeline ────────────────────────────────────────────
-    _write_status({"phase": "pipeline"})
-    _log("Step 2/4 — Running sentiment pipeline on scraped data…")
-
-    if new_df is not None:
+        # ── 1. Scrape ────────────────────────────────────────────────────────────
         try:
-            from reddit_scraper import run_pipeline_on_new_data
-            ok = run_pipeline_on_new_data(new_df)
-            if ok:
-                _log("✅  Sentiment pipeline complete. ABSA dataset updated.")
+            from reddit_scraper import RedditScraper
+            scraper = RedditScraper()
+            new_df = scraper.run()
+
+            if new_df is None or len(new_df) == 0:
+                _log("⚠️  No new posts found. Using existing dataset if available.")
+                new_df = None
             else:
-                _log("⚠️  Sentiment pipeline encountered issues — continuing with existing data.")
+                sub_counts = new_df["subreddit"].value_counts().to_dict()
+                from datetime import datetime as _dt
+                week_file = OUTPUT_DIR / f"reddit_{_dt.now().strftime('%Y-W%V')}.csv"
+                _write_status({
+                    "scraped_count": len(new_df),
+                    "sub_counts": sub_counts,
+                    "scraped_csv": str(SCRAPED_CSV),
+                    "week_csv": str(week_file),
+                })
+                _log(f"✅  Scraped {len(new_df)} posts across {new_df['subreddit'].nunique()} subreddits.")
+                for sub, cnt in sub_counts.items():
+                    _log(f"   r/{sub}: {cnt} posts")
+
         except Exception as e:
-            _log(f"⚠️  Pipeline warning: {e}  — continuing.")
-    else:
-        _log("   Skipping pipeline (no new data).")
+            _log(f"❌  Scraping failed: {e}")
+            _write_status({"phase": "error", "error": str(e)})
+            return
 
-    # ── 3. Train model ───────────────────────────────────────────────────────
-    _write_status({"phase": "training"})
-    _log("Step 3/4 — Fine-tuning DeBERTa model…")
+        # ── Check stop before step 2 ──
+        if _abort_if_stopped("Scraping"): return
 
-    # Snapshot baseline before training overwrites metrics.json
-    baseline = _load_metrics(METRICS_PATH)
-    if baseline:
-        _write_status({"baseline_metrics": baseline})
-        _log(f"   Baseline  → Accuracy: {baseline.get('eval_accuracy',0):.4f}  "
-             f"F1: {baseline.get('eval_f1',0):.4f}  "
-             f"Precision: {baseline.get('eval_precision',0):.4f}")
-        # Save a separate baseline snapshot so the UI can compare after training
-        with open(BASELINE_FILE, "w") as bf:
-            json.dump(baseline, bf)
-    else:
-        _log("   No baseline metrics found — will deploy unconditionally if training succeeds.")
+        # ── 2. Run sentiment pipeline ────────────────────────────────────────────
+        _write_status({"phase": "pipeline"})
+        step_prefix = "Step 2/2" if run_type == "scrape" else "Step 2/4"
+        _log(f"{step_prefix}a — Running production sentiment pipeline (SentimentABSA-v3)…")
 
-    try:
-        from train_absa_model import train
-        train()
-        _log("✅  Training complete.")
-    except Exception as e:
-        _log(f"❌  Training failed: {e}")
-        _write_status({"phase": "error", "error": str(e)})
-        return
+        if new_df is not None:
+            try:
+                from reddit_scraper import run_pipeline_on_new_data, run_retraining_pipeline_on_new_data
+                ok_prod = run_pipeline_on_new_data(new_df)
+                if ok_prod:
+                    _log("✅  Production sentiment pipeline complete (sentiment_output.csv updated).")
+                else:
+                    _log("⚠️  Production sentiment pipeline encountered issues.")
 
-    # ── 4. Compare & conditionally deploy ────────────────────────────────────
-    _write_status({"phase": "comparing"})
-    _log("Step 4/4 — Comparing new model vs baseline…")
-
-    new_metrics = _load_metrics(METRICS_PATH)
-    if not new_metrics:
-        _log("❌  Could not read new metrics.json. Aborting deploy.")
-        _write_status({"phase": "error", "error": "metrics.json not found after training"})
-        return
-
-    _write_status({"new_metrics": new_metrics})
-    _log(f"   New model → Accuracy: {new_metrics.get('eval_accuracy',0):.4f}  "
-         f"F1: {new_metrics.get('eval_f1',0):.4f}  "
-         f"Precision: {new_metrics.get('eval_precision',0):.4f}")
-
-    def _is_better(new, old) -> bool:
-        if not old:
-            return True
-        # F1 is the primary gate — must improve
-        if new.get("eval_f1", 0) < old.get("eval_f1", 0):
-            return False
-        # At least 2 of 3 metrics (Acc, F1, Precision) must improve or hold
-        keys = ["eval_accuracy", "eval_f1", "eval_precision"]
-        improved_count = sum(1 for k in keys if new.get(k, 0) >= old.get(k, 0))
-        return improved_count >= 2
-
-    improved = _is_better(new_metrics, baseline)
-
-    if not improved:
-        _log("🚫  New model F1 did not improve over baseline. Deployment skipped.")
-        _log("   Production model remains unchanged.")
-        _write_status({"phase": "skipped", "new_metrics": new_metrics})
-        _update_schedule(deployed=False)
-        return
-
-    _log("🎉  New model outperforms baseline! Uploading to Hugging Face…")
-    _write_status({"phase": "deploying"})
-
-    try:
-        import toml
-        secrets = toml.load(".streamlit/secrets.toml")
-        hf_token = secrets.get("huggingface", {}).get("token")
-        repo_id  = secrets.get("huggingface", {}).get("repo_id", "unknownexplosion/SentimentAnalysisog")
-
-        if hf_token:
-            from upload_to_hub import upload_model_programmatic
-            ok = upload_model_programmatic(hf_token, repo_id)
-            if ok:
-                _log(f"🚀  Model deployed to {repo_id}.")
-            else:
-                _log("⚠️  Upload reported failure — check HF token/connectivity.")
+                _log(f"{step_prefix}b — Labeling data for retraining (nlptown teacher model)…")
+                ok_train = run_retraining_pipeline_on_new_data(new_df)
+                if ok_train:
+                    _log("✅  Retraining labeling pipeline complete (absa_training_dataset.csv updated).")
+                else:
+                    _log("⚠️  Retraining labeling pipeline encountered issues.")
+            except Exception as e:
+                _log(f"⚠️  Pipeline warning: {e}  — continuing.")
         else:
-            _log("⚠️  No HF token in secrets.toml — skipping upload.")
-    except Exception as e:
-        _log(f"⚠️  Deploy warning: {e}")
+            _log("   Skipping pipelines (no new data).")
 
-    _write_status({"phase": "done"})
-    _update_schedule(deployed=True)
-    _log("✅  Pipeline complete.")
+        # Update scraper schedule stats
+        from weekly_scheduler import load_schedule, save_schedule, next_sunday
+        state = load_schedule()
+        state["last_run"]  = datetime.now(timezone.utc).isoformat()
+        state["next_run"]  = next_sunday().isoformat()
+        state["run_count"] = state.get("run_count", 0) + 1
+        save_schedule(state)
+
+        if run_type == "scrape":
+            _write_status({"phase": "done"})
+            _log("✅  Scraping and sentiment pipeline complete.")
+            return
+
+    # ── Check stop before step 3 ──
+    if _abort_if_stopped("Scraping / Sentiment Pipeline"): return
+
+    if run_type in ("all", "train"):
+        _write_status({"phase": "training"})
+        _log("Step 1/2 — Fine-tuning DeBERTa model…") if run_type == "train" else _log("Step 3/4 — Fine-tuning DeBERTa model…")
+
+        # Snapshot baseline before training overwrites metrics.json
+        baseline = _load_metrics(METRICS_PATH)
+        if baseline:
+            _write_status({"baseline_metrics": baseline})
+            _log(f"   Baseline  → Accuracy: {baseline.get('eval_accuracy',0):.4f}  "
+                 f"F1: {baseline.get('eval_f1',0):.4f}  "
+                 f"Precision: {baseline.get('eval_precision',0):.4f}")
+            with open(BASELINE_FILE, "w") as bf:
+                json.dump(baseline, bf)
+        else:
+            _log("   No baseline metrics found — will deploy unconditionally if training succeeds.")
+
+        try:
+            from train_absa_model import train
+            train()
+            _log("✅  Training complete.")
+        except Exception as e:
+            _log(f"❌  Training failed: {e}")
+            _write_status({"phase": "error", "error": str(e)})
+            return
+
+        # ── Check stop before step 4 ──
+        if _abort_if_stopped("Training"): return
+
+        # ── 4. Compare & conditionally deploy ────────────────────────────────────
+        _write_status({"phase": "comparing"})
+        _log("Step 2/2 — Comparing new model vs baseline…") if run_type == "train" else _log("Step 4/4 — Comparing new model vs baseline…")
+
+        new_metrics = _load_metrics(METRICS_PATH)
+        if not new_metrics:
+            _log("❌  Could not read new metrics.json. Aborting deploy.")
+            _write_status({"phase": "error", "error": "metrics.json not found after training"})
+            return
+
+        _write_status({"new_metrics": new_metrics})
+        _log(f"   New model → Accuracy: {new_metrics.get('eval_accuracy',0):.4f}  "
+             f"F1: {new_metrics.get('eval_f1',0):.4f}  "
+             f"Precision: {new_metrics.get('eval_precision',0):.4f}")
+
+        def _is_better(new, old) -> bool:
+            if not old:
+                return True
+            if new.get("eval_f1", 0) < old.get("eval_f1", 0):
+                return False
+            keys = ["eval_accuracy", "eval_f1", "eval_precision"]
+            improved_count = sum(1 for k in keys if new.get(k, 0) >= old.get(k, 0))
+            return improved_count >= 2
+
+        improved = _is_better(new_metrics, baseline)
+
+        if not improved:
+            _log("🚫  New model F1 did not improve over baseline. Deployment skipped.")
+            _log("   Production model remains unchanged.")
+            _write_status({"phase": "skipped", "new_metrics": new_metrics})
+            _update_schedule(deployed=False)
+            return
+
+        _log("🎉  New model outperforms baseline! Uploading to Hugging Face…")
+        _write_status({"phase": "deploying"})
+
+        try:
+            import toml
+            secrets = toml.load(".streamlit/secrets.toml")
+            hf_token = secrets.get("huggingface", {}).get("token")
+            repo_id  = secrets.get("huggingface", {}).get("repo_id", "unknownexplosion/SentimentABSA-v3")
+
+            if hf_token:
+                from upload_to_hub import upload_model_programmatic
+                ok = upload_model_programmatic(hf_token, repo_id)
+                if ok:
+                    _log(f"🚀  Model deployed to {repo_id}.")
+                else:
+                    _log("⚠️  Upload reported failure — check HF token/connectivity.")
+            else:
+                _log("⚠️  No HF token in secrets.toml — skipping upload.")
+        except Exception as e:
+            _log(f"⚠️  Deploy warning: {e}")
+
+        _write_status({"phase": "done"})
+        _update_schedule(deployed=True)
+        _log("✅  Pipeline complete.")
 
 
 def _update_schedule(deployed: bool):
@@ -480,7 +578,7 @@ def _update_schedule(deployed: bool):
     save_schedule(state)
 
 
-def _start_pipeline():
+def _start_pipeline(run_type="all"):
     """Launch the pipeline on a daemon thread and reset state/log files."""
     try:
         import pandas as pd
@@ -492,14 +590,16 @@ def _start_pipeline():
         initial_size = 0
 
     # Wipe old state
-    _write_status({"phase": "starting", "scraped_count": 0, "sub_counts": {},
+    _write_status({"phase": "starting", "run_type": run_type, "scraped_count": 0, "sub_counts": {},
                    "baseline_metrics": {}, "new_metrics": {}, "error": None,
                    "initial_dataset_size": initial_size})
     if LOG_FILE.exists():
         LOG_FILE.unlink()
+    _clear_stop()   # ensure no leftover stop flag
 
-    t = threading.Thread(target=_run_pipeline_bg, daemon=True)
+    t = threading.Thread(target=lambda: _run_pipeline_bg(run_type), daemon=True)
     t.start()
+
 
 # ─── UI helpers ───────────────────────────────────────────────────────────────
 
@@ -534,14 +634,26 @@ def _pill(phase: str) -> str:
     cls   = _PHASE_PILL.get(phase, "idle")
     return f'<span class="rtc-pill pill-{cls}">{label}</span>'
 
-def _fmt_date(iso: str | None, fallback="—") -> str:
-    if not iso:
-        return fallback
+def to_naive_datetime(val) -> datetime | None:
+    if not val:
+        return None
+    if isinstance(val, datetime):
+        return val.replace(tzinfo=None)
     try:
-        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return dt.astimezone().strftime("%a, %d %b %Y  %H:%M")
+        s = str(val)
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        dt = datetime.fromisoformat(s)
+        return dt.replace(tzinfo=None)
     except Exception:
-        return iso[:19].replace("T", "  ")
+        return None
+
+def _fmt_date(iso: str | None, fallback="—") -> str:
+    dt = to_naive_datetime(iso)
+    if not dt:
+        return fallback
+    return dt.strftime("%a, %d %b %Y %H:%M")
+
 
 def _metric_arrow(new_val, old_val):
     if not old_val:
@@ -551,6 +663,37 @@ def _metric_arrow(new_val, old_val):
     elif new_val < old_val:
         return "↓", "red"
     return "=", "amber"
+
+
+# ─── Stale-thread detection ────────────────────────────────────────────────────
+_HEARTBEAT_TIMEOUT_SEC = 300   # 5 minutes without a heartbeat → thread is dead
+
+def _check_stale_pipeline(status: dict) -> dict:
+    """If the pipeline claims to be running but the heartbeat is stale,
+    mark it as errored so the UI unlocks for the user."""
+    phase = status.get("phase", "")
+    if phase in ("", "done", "skipped", "error"):
+        return status
+
+    hb = status.get("heartbeat")
+    if not hb:
+        # Legacy status without heartbeat — trust it for now
+        return status
+
+    try:
+        hb_dt = datetime.fromisoformat(hb.replace("Z", "+00:00"))
+        age = (datetime.now(timezone.utc) - hb_dt).total_seconds()
+        if age > _HEARTBEAT_TIMEOUT_SEC:
+            _log(f"⚠️  Pipeline thread heartbeat stale ({age:.0f}s). Marking as error.")
+            status["phase"] = "error"
+            status["error"] = (
+                f"Pipeline thread stopped responding (no heartbeat for {age/60:.0f} min). "
+                f"Last known phase: {phase}. Please re-run."
+            )
+            _write_status(status)
+    except Exception:
+        pass
+    return status
 
 
 # ─── Main render function ─────────────────────────────────────────────────────
@@ -563,8 +706,10 @@ def render_retraining_center():
         st.session_state.pipeline_running = False
 
     status   = _read_status()
+    status   = _check_stale_pipeline(status)   # auto-recover dead threads
     phase    = status.get("phase", "")
     is_alive = phase not in ("", "done", "skipped", "error")
+    active_run_type = status.get("run_type", "all")
 
     if is_alive:
         st.session_state.pipeline_running = True
@@ -576,33 +721,167 @@ def render_retraining_center():
         unsafe_allow_html=True,
     )
 
-    # ── Schedule card ────────────────────────────────────────────────────────
-    schedule  = _load_schedule()
-    last_run  = _fmt_date(schedule.get("last_monthly_run"))
-    next_run  = _fmt_date(schedule.get("next_monthly_run"))
-    run_count = schedule.get("monthly_run_count", 0)
-    pill_html = _pill(phase)
+    # ── Load and self-heal schedules timezone-safely ──────────────────────────
+    from weekly_scheduler import load_schedule, save_schedule, next_sunday, next_month
+    
+    schedule  = load_schedule()
+    modified = False
+    
+    # 1. Weekly Scraper schedule dates
+    last_scrape_raw = schedule.get("last_run")
+    next_scrape_raw = schedule.get("next_run")
+    
+    dt_next_scrape = to_naive_datetime(next_scrape_raw)
+    if not dt_next_scrape or dt_next_scrape < datetime.now():
+        dt_next_scrape = next_sunday()
+        schedule["next_run"] = dt_next_scrape.isoformat()
+        modified = True
+        
+    last_scrape_str = _fmt_date(last_scrape_raw)
+    next_scrape_str = _fmt_date(dt_next_scrape.isoformat())
+    scrape_count = schedule.get("run_count", 0)
+    
+    # 2. Monthly Retrainer schedule dates
+    last_train_raw = schedule.get("last_monthly_run")
+    next_train_raw = schedule.get("next_monthly_run")
+    
+    dt_next_train = to_naive_datetime(next_train_raw)
+    if not dt_next_train or dt_next_train < datetime.now():
+        dt_next_train = next_month()
+        schedule["next_monthly_run"] = dt_next_train.isoformat()
+        modified = True
+        
+    last_train_str = _fmt_date(last_train_raw)
+    next_train_str = _fmt_date(dt_next_train.isoformat())
+    train_count = schedule.get("monthly_run_count", 0)
+    
+    if modified:
+        save_schedule(schedule)
 
-    st.markdown(f"""
-    <div class="rtc-sched-card">
-      <div class="rtc-sched-item">
-        <div class="rtc-sched-label">Last Run</div>
-        <div class="rtc-sched-value">{last_run}</div>
-      </div>
-      <div class="rtc-sched-item">
-        <div class="rtc-sched-label">Next Scheduled</div>
-        <div class="rtc-sched-value">{next_run}</div>
-      </div>
-      <div class="rtc-sched-item">
-        <div class="rtc-sched-label">Status</div>
-        <div style="margin-top:4px">{pill_html}</div>
-      </div>
-      <div class="rtc-sched-item">
-        <div class="rtc-sched-label">Total Cycles</div>
-        <div class="rtc-sched-value">{run_count}</div>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Determine scraper pill and retrainer pill based on active phase and run_type
+    scraper_pill_html = _pill("")  # Idle
+    retrainer_pill_html = _pill("")  # Idle
+    
+    if phase == "error":
+        err_pill = _pill("error")
+        if active_run_type == "scrape":
+            scraper_pill_html = err_pill
+        elif active_run_type == "train":
+            retrainer_pill_html = err_pill
+        else:
+            scraper_pill_html = err_pill
+            retrainer_pill_html = err_pill
+    elif phase in ("done", "skipped"):
+        success_pill = _pill("done" if phase == "done" else "skipped")
+        if active_run_type == "scrape":
+            scraper_pill_html = success_pill
+        elif active_run_type == "train":
+            retrainer_pill_html = success_pill
+        else:
+            scraper_pill_html = _pill("done")
+            retrainer_pill_html = success_pill
+    elif is_alive:
+        if active_run_type == "scrape":
+            scraper_pill_html = _pill(phase)
+        elif active_run_type == "train":
+            retrainer_pill_html = _pill(phase)
+        else:
+            # "all"
+            if phase in ("starting", "scraping", "pipeline"):
+                scraper_pill_html = _pill(phase)
+                retrainer_pill_html = '<span class="rtc-pill pill-idle">Waiting</span>'
+            else:
+                scraper_pill_html = _pill("done")
+                retrainer_pill_html = _pill(phase)
+
+    # ── Render Side-by-Side Glassmorphic Grid ──
+    st.markdown('<div class="rtc-sched-grid">', unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="rtc-sched-card">
+          <div>
+            <div class="rtc-card-header">
+              <span class="rtc-card-title">📥 Weekly Reddit Scraper</span>
+              <div>{scraper_pill_html}</div>
+            </div>
+            <div class="rtc-card-body">
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Last Run</div>
+                <div class="rtc-sched-value">{last_scrape_str}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Next Scheduled</div>
+                <div class="rtc-sched-value highlight">{next_scrape_str}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Total Cycles</div>
+                <div class="rtc-sched-value">{scrape_count}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Frequency</div>
+                <div class="rtc-sched-value">Weekly (Sundays)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        if not is_alive:
+            if st.button("📥  Trigger Scraper & Pipeline", type="primary", width="stretch"):
+                _start_pipeline(run_type="scrape")
+                st.session_state.pipeline_running = True
+                st.rerun()
+        else:
+            if active_run_type == "scrape":
+                st.button("⏳ Scraper Running...", disabled=True, width="stretch")
+            else:
+                st.button("📥 Trigger Scraper", disabled=True, width="stretch")
+                
+    with col2:
+        st.markdown(f"""
+        <div class="rtc-sched-card">
+          <div>
+            <div class="rtc-card-header">
+              <span class="rtc-card-title">🧠 Model Fine-Tuning & Deploy</span>
+              <div>{retrainer_pill_html}</div>
+            </div>
+            <div class="rtc-card-body">
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Last Run</div>
+                <div class="rtc-sched-value">{last_train_str}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Next Scheduled</div>
+                <div class="rtc-sched-value highlight">{next_train_str}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Total Cycles</div>
+                <div class="rtc-sched-value">{train_count}</div>
+              </div>
+              <div class="rtc-sched-item">
+                <div class="rtc-sched-label">Frequency</div>
+                <div class="rtc-sched-value">Monthly (1st)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+        if not is_alive:
+            if st.button("🧠  Trigger Model Retraining", type="primary", width="stretch"):
+                _start_pipeline(run_type="train")
+                st.session_state.pipeline_running = True
+                st.rerun()
+        else:
+            if active_run_type == "train":
+                st.button("⏳ Retraining Running...", disabled=True, width="stretch")
+            else:
+                st.button("🧠 Trigger Retraining", disabled=True, width="stretch")
+                
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:24px'></div>", unsafe_allow_html=True)
 
     # ── Training Data Pool card (always-visible, live from CSV) ──────────────
     try:
@@ -638,16 +917,16 @@ def render_retraining_center():
 
     st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
-    # ── Trigger button ────────────────────────────────────────────────────────
-    col_btn, _ = st.columns([1, 3])
-    with col_btn:
-        if not is_alive:
-            if st.button("▶  Run Retraining Now", type="primary", width="stretch"):
-                _start_pipeline()
-                st.session_state.pipeline_running = True
+    # ── Universal Stop Button (only visible when running) ──────────────────────
+    if is_alive:
+        col_stop, _ = st.columns([1, 1])
+        with col_stop:
+            if st.button("⏹  Stop Pipeline", type="secondary", width="stretch"):
+                _stop_pipeline()
+                _log("🛑  Stop requested by user. Pipeline will halt after current step.")
+                st.toast("Stop signal sent — pipeline will halt after the current step.", icon="🛑")
                 st.rerun()
-        else:
-            st.button("⏳  Pipeline Running…", disabled=True, width="stretch")
+        st.markdown("<div style='height:18px'></div>", unsafe_allow_html=True)
 
     # ── Auto-refresh while running ────────────────────────────────────────────
     if is_alive:
@@ -664,30 +943,39 @@ def render_retraining_center():
 
 def _render_live_status(status: dict):
     phase = status.get("phase", "")
+    active_run_type = status.get("run_type", "all")
 
-    # ── 1. Scraping panel (visible from scraping → onwards) ─────────────────
-    if phase in ("scraping", "pipeline", "training", "comparing",
-                 "deploying", "done", "skipped", "error"):
-        _render_scraping_panel(status)
+    step_num = 1
 
-    # ── 2. Training metrics (visible from training → onwards) ────────────────
-    if phase in ("training", "comparing", "deploying", "done", "skipped", "error"):
-        _render_training_panel(status)
+    # ── 1. Scraping panel (visible from scraping → onwards for scrape/all tasks) ──
+    if active_run_type in ("scrape", "all"):
+        if phase in ("scraping", "pipeline", "training", "comparing",
+                     "deploying", "done", "skipped", "error"):
+            _render_scraping_panel(status, step_num)
+            step_num += 1
 
-    # ── 3. Comparison panel ───────────────────────────────────────────────────
-    if phase in ("comparing", "deploying", "done", "skipped", "error"):
-        _render_comparison_panel(status)
+    # ── 2. Training metrics (visible from training → onwards for train/all tasks) ──
+    if active_run_type in ("train", "all"):
+        if phase in ("training", "comparing", "deploying", "done", "skipped", "error"):
+            _render_training_panel(status, step_num)
+            step_num += 1
+
+    # ── 3. Comparison panel (visible from comparing → onwards for train/all tasks) ──
+    if active_run_type in ("train", "all"):
+        if phase in ("comparing", "deploying", "done", "skipped", "error"):
+            _render_comparison_panel(status, step_num)
+            step_num += 1
 
     # ── 4. Terminal log (always visible once started) ─────────────────────────
-    _render_log_panel()
+    _render_log_panel(step_num)
 
 
-def _render_scraping_panel(status: dict):
+def _render_scraping_panel(status: dict, step_num: int):
     st.markdown(
-        '<div class="rtc-step-label">'
-        '<div class="rtc-step-num">1</div>'
-        '<div class="rtc-step-title">Reddit Data Scraping</div>'
-        '</div>',
+        f'<div class="rtc-step-label">'
+        f'<div class="rtc-step-num">{step_num}</div>'
+        f'<div class="rtc-step-title">Reddit Data Scraping</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -733,13 +1021,17 @@ def _render_scraping_panel(status: dict):
         except Exception:
             pass
 
+    if phase == "error" and status.get("run_type") == "scrape":
+        err = status.get("error", "Unknown error")
+        st.error(f"❌ **Scraping Error** — {err}")
 
-def _render_training_panel(status: dict):
+
+def _render_training_panel(status: dict, step_num: int):
     st.markdown(
-        '<div class="rtc-step-label">'
-        '<div class="rtc-step-num">2</div>'
-        '<div class="rtc-step-title">DeBERTa Fine-tuning</div>'
-        '</div>',
+        f'<div class="rtc-step-label">'
+        f'<div class="rtc-step-num">{step_num}</div>'
+        f'<div class="rtc-step-title">DeBERTa Fine-tuning</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -801,12 +1093,12 @@ def _render_training_panel(status: dict):
     m6.metric("Learning Rate", f"{lr:.2e}"         if lr        else "—")
 
 
-def _render_comparison_panel(status: dict):
+def _render_comparison_panel(status: dict, step_num: int):
     st.markdown(
-        '<div class="rtc-step-label">'
-        '<div class="rtc-step-num">3</div>'
-        '<div class="rtc-step-title">Champion vs Challenger</div>'
-        '</div>',
+        f'<div class="rtc-step-label">'
+        f'<div class="rtc-step-num">{step_num}</div>'
+        f'<div class="rtc-step-title">Champion vs Challenger</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
 
@@ -860,12 +1152,12 @@ def _render_comparison_panel(status: dict):
         st.error(f"❌ **Pipeline Error** — {err}")
 
 
-def _render_log_panel():
+def _render_log_panel(step_num: int):
     st.markdown(
-        '<div class="rtc-step-label">'
-        '<div class="rtc-step-num" style="background:#52525b">4</div>'
-        '<div class="rtc-step-title">Live Pipeline Log</div>'
-        '</div>',
+        f'<div class="rtc-step-label">'
+        f'<div class="rtc-step-num" style="background:#52525b">{step_num}</div>'
+        f'<div class="rtc-step-title">Live Pipeline Log</div>'
+        f'</div>',
         unsafe_allow_html=True,
     )
     import html as _html

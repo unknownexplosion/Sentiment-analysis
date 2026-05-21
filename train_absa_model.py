@@ -1,4 +1,4 @@
-
+import patch_transformers
 import os
 import json
 import pandas as pd
@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Config
-MODEL_CHECKPOINT = "unknownexplosion/SentimentAnalysisog"
+MODEL_CHECKPOINT = "microsoft/deberta-v3-small"
 OUTPUT_DIR       = "outputs/fine_tuned_absa_model"
 DATA_PATH        = "outputs/absa_training_dataset.csv"
 LIVE_METRICS     = "outputs/live_training_metrics.json"   # written after every epoch

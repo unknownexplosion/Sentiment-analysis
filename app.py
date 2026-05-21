@@ -1,3 +1,4 @@
+import patch_transformers
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -23,12 +24,13 @@ try:
 except ImportError:
     MFG_TRANS_AVAILABLE = False
 
-try:
-    import spacy as _spacy
-    _spacy_nlp = _spacy.load("en_core_web_sm")
-    SPACY_AVAILABLE = True
-except Exception:
-    SPACY_AVAILABLE = False
+# Unified aspect extraction (shared across project)
+from aspect_extraction import (
+    split_into_sentences, detect_aspect, detect_all_aspects,
+    run_aspect_sentiment, map_sentiment_label,
+    ASPECT_KEYWORDS as MFG_ASPECT_KEYWORDS,
+    SPACY_AVAILABLE, _nlp as _spacy_nlp, _KW_TO_ASPECT,
+)
 
 import re
 import time
@@ -54,106 +56,81 @@ def _map_label_to_display(label: str):
     return display_label, color
 
 def _split_into_clauses(text: str):
-    """Naive split into clauses for more granular sentiment."""
-    # Break on '.', '!', '?', 'but', 'however', 'though'
-    parts = re.split(r'(?i)\bbut\b|\bhowever\b|\bthough\b|[.!?]', text)
-    clauses = [p.strip() for p in parts if p.strip()]
-    return clauses
+    """Split into sentences using the shared spaCy-based splitter."""
+    return split_into_sentences(text)
+
+def _split_into_sentences_with_parents(text: str) -> list[tuple[str, str]]:
+    """
+    Returns a list of (clause, parent_sentence) tuples.
+    This mirrors the split logic in aspect_extraction.py but maps
+    each sub-clause back to its parent sentence.
+    """
+    if not text or not isinstance(text, str) or not text.strip():
+        return []
+
+    # Stage 1: split into sentences
+    if SPACY_AVAILABLE and _spacy_nlp is not None:
+        doc = _spacy_nlp(text)
+        raw_sents = [s.text.strip() for s in doc.sents if s.text.strip()]
+        if not raw_sents:
+            raw_sents = [text.strip()]
+    else:
+        # Fallback regex sentence split
+        raw_sents = [p.strip() for p in re.split(r'[.!?]', text) if p.strip()]
+        if not raw_sents:
+            raw_sents = [text.strip()]
+
+    # Stage 2: sub-split each sentence on contrast conjunctions, then on "and"
+    # when the resulting parts belong to *different* aspect categories.
+    results = []
+    conjunction_re = re.compile(
+        r'(?i)\s*\b(?:but|however|though|although|yet|also|additionally|on the other hand|whereas|while)\b\s*'
+    )
+    and_re = re.compile(r'(?i)\s*(?:,\s*and|\band\b)\s*')
+
+    def _try_and_split(part, parent):
+        """
+        Attempt to split a clause on 'and' when the resulting parts
+        belong to different aspect categories. If no split is warranted,
+        returns the part as-is (if it meets minimum word count).
+        """
+        and_parts = and_re.split(part)
+        and_parts = [p.strip() for p in and_parts if p.strip()]
+        if len(and_parts) >= 2:
+            meaningful_and = [p for p in and_parts if len(p.split()) >= 3]
+            if len(meaningful_and) >= 2:
+                categories = [detect_aspect(p) for p in meaningful_and]
+                if len(set(categories)) > 1:
+                    return [(p, parent) for p in meaningful_and]
+        # No and-split — return as-is if long enough
+        if len(part.split()) >= 3:
+            return [(part, parent)]
+        return []
+
+    for sent in raw_sents:
+        parts = conjunction_re.split(sent)
+        parts = [p.strip() for p in parts if p.strip()]
+
+        if len(parts) <= 1:
+            # No contrast split — try "and" split directly
+            results.extend(_try_and_split(sent, sent))
+            continue
+
+        # Contrast split succeeded — now also try "and" split on each sub-part
+        meaningful = [p for p in parts if len(p.split()) >= 3]
+        if meaningful:
+            for p in meaningful:
+                results.extend(_try_and_split(p, sent))
+        else:
+            # Only keep the original sentence if it meets minimum word count
+            if len(sent.split()) >= 3:
+                results.append((sent, sent))
+
+    return results
 
 def _detect_aspect(text: str) -> str:
-    """Heuristic aspect detector for Apple reviews."""
-    t = text.lower()
-
-    aspect_keywords = {
-    "Camera": [
-        "camera", "cameras", "photo", "photos", "picture", "pictures",
-        "image quality", "picture quality", "clarity", "sharpness",
-        "selfie", "front camera", "rear camera", "telephoto", "ultrawide",
-        "portrait mode", "macro mode", "night mode", "hdr", "stabilization",
-        "optical zoom", "digital zoom", "lens", "sensor", "exposure"
-    ],
-
-    "Battery": [
-        "battery", "battery life", "battery backup", "charge", "charging",
-        "charging speed", "fast charging", "wireless charging", "charger",
-        "power adapter", "power consumption",
-        "drains fast", "drains quickly", "loses charge", "dies quickly",
-        "needs frequent charging", "screen on time", "sot"
-    ],
-
-    "Performance": [
-        "performance", "speed", "lag", "slow", "fast", "smooth", "snappy",
-        "responsive", "responsiveness", "multitasking", "freeze", "freezes",
-        "stutter", "stutters", "hang", "hangs", "choppy",
-        "processor", "chip", "gpu", "cpu",
-        "a14", "a15", "a16", "a17", "m1", "m2", "m3", "m3 pro", "m3 max",
-        "overheats", "heats up", "thermal throttle", "thermal throttling"
-    ],
-
-    "Display": [
-        "display", "screen", "lcd", "oled", "super retina", "retina",
-        "brightness", "contrast", "color accuracy", "colour accuracy",
-        "resolution", "refresh rate", "120hz", "90hz", "60hz", "promotion",
-        "vivid colors", "washed out", "sunlight visibility", "glare",
-        "viewing angles", "pixel density"
-    ],
-
-    "Design & Build": [
-        "design", "build", "build quality", "material", "aluminium", "metal",
-        "durability", "durable", "sleek", "thin", "lightweight", "premium feel",
-        "matte finish", "glossy finish", "scratch", "scratches easily",
-        "look", "looks", "feel in hand", "aesthetics"
-    ],
-
-    "Software & OS": [
-        "ios", "macos", "software", "system", "os", "update", "updates",
-        "bug", "bugs", "crash", "crashes", "glitch", "glitches",
-        "freezes", "freeze", "ui", "ux", "user interface", "notifications",
-        "apple ecosystem", "continuity", "handoff", "airdrop", "icloud"
-    ],
-
-    "Audio": [
-        "audio", "sound", "speaker", "speakers", "bass", "treble",
-        "loudness", "microphone", "mic", "call quality", "voice clarity",
-        "stereo speakers", "muffled audio", "tinny sound"
-    ],
-
-    "Connectivity": [
-        "wifi", "wi-fi", "bluetooth", "network", "cellular", "5g", "lte",
-        "signal", "connectivity", "hotspot", "airdrop disconnect",
-        "network drops", "weak signal", "unstable wifi"
-    ],
-
-    "Storage": [
-        "storage", "space", "memory", "ram",
-        "32gb", "64gb", "128gb", "256gb", "512gb", "1tb",
-        "running out of space", "not enough storage"
-    ],
-
-    "Price": [
-        "price", "pricing", "cost", "expensive", "overpriced", "too costly",
-        "cheap", "value for money", "worth the price", "not worth it",
-        "premium pricing"
-    ],
-
-    "Heating / Thermals": [
-        "heat", "heating", "heats", "heats up", "gets hot", "overheats",
-        "thermal throttling", "hot while charging", "hot during gaming",
-    ],
-
-    "Other": []
-}
-
-    best_aspect = "Other"
-    best_score = 0
-
-    for aspect, kws in aspect_keywords.items():
-        score = sum(1 for kw in kws if kw in t)
-        if score > best_score:
-            best_score = score
-            best_aspect = aspect
-
-    return best_aspect
+    """Aspect detector — delegates to the shared aspect_extraction module."""
+    return detect_aspect(text)
 
 
 # --- App Config ---
@@ -164,17 +141,44 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for Minimalist Apple-like Design + Manufacturer Hub dark theme
+# Custom CSS — Dark-mode-first Apple-inspired Design
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    .main {
-        background-color: #FBFBFD;
+
+    /* ── Theme-aware CSS custom properties ── */
+    :root {
+        --text-primary: #F5F5F7;
+        --text-secondary: #A1A1A6;
+        --text-muted: #8E8E93;
+        --bg-primary: #0d1117;
+        --bg-card: rgba(255,255,255,0.06);
+        --bg-card-hover: rgba(255,255,255,0.09);
+        --border-subtle: rgba(255,255,255,0.1);
+        --accent: #007AFF;
+        --positive: #34C759;
+        --negative: #FF3B30;
+        --neutral: #8E8E93;
     }
+
+    /* Light mode overrides (when Streamlit is in light theme) */
+    [data-testid="stAppViewContainer"][style*="background-color: rgb(255, 255, 255)"],
+    [data-testid="stAppViewContainer"][data-theme="light"] {
+        --text-primary: #1D1D1F;
+        --text-secondary: #636366;
+        --text-muted: #86868B;
+        --bg-card: rgba(0,0,0,0.04);
+        --bg-card-hover: rgba(0,0,0,0.07);
+        --border-subtle: rgba(0,0,0,0.1);
+    }
+
     h1, h2, h3 {
-        font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-        color: #1D1D1F;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        color: var(--text-primary) !important;
         font-weight: 600;
+    }
+    p, span, label, div {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     }
     .stButton>button {
         background-color: #007AFF;
@@ -190,14 +194,13 @@ st.markdown("""
         transform: scale(1.02);
     }
     .metric-card {
-        background-color: white;
+        background: var(--bg-card);
         padding: 20px;
         border-radius: 16px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid var(--border-subtle);
         text-align: center;
+        color: var(--text-primary);
     }
-    .stMetricLabel { color: #86868B; }
-    .stMetricValue { color: #1D1D1F; }
 
     /* ── Manufacturer Hub styles ── */
     .mfg-hero {
@@ -247,6 +250,30 @@ st.markdown("""
     .mfg-pill-pos { display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;margin:2px 3px;background:rgba(52,199,89,0.2);color:#34C759;border:1px solid rgba(52,199,89,0.3); }
     .mfg-pill-neg { display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;margin:2px 3px;background:rgba(255,59,48,0.2);color:#FF3B30;border:1px solid rgba(255,59,48,0.3); }
     .mfg-pill-neu { display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;margin:2px 3px;background:rgba(142,142,147,0.2);color:#8E8E93;border:1px solid rgba(142,142,147,0.3); }
+
+    /* ── Theme-aware cards for Playground/Dashboard ── */
+    .theme-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 12px;
+        color: var(--text-primary);
+    }
+    .theme-card h3, .theme-card h4 { color: var(--text-primary) !important; }
+    .theme-card p { color: var(--text-secondary); }
+
+    /* ── Sentiment result card ── */
+    .sentiment-card {
+        border-radius: 16px;
+        padding: 24px;
+        text-align: center;
+        margin-top: 20px;
+        border-width: 2px;
+        border-style: solid;
+    }
+    .sentiment-card h3 { margin: 0; }
+    .sentiment-card .label-detail { color: var(--text-muted); margin-top: 8px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -269,19 +296,7 @@ MFG_GRID   = dict(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,25
 MFG_LEGEND = dict(bgcolor="rgba(255,255,255,0.04)", bordercolor="rgba(255,255,255,0.1)", borderwidth=1,
                   orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
 
-MFG_ASPECT_KEYWORDS = {
-    "Camera":         ["camera","photo","picture","image quality","selfie","lens","sensor","night mode","clarity"],
-    "Battery":        ["battery","battery life","charge","charging","drains","power","sot"],
-    "Performance":    ["performance","speed","lag","slow","fast","smooth","chip","gpu","cpu","processor","freeze","hang"],
-    "Display":        ["display","screen","oled","brightness","resolution","refresh rate","retina","120hz"],
-    "Design & Build": ["design","build","material","durability","sleek","thin","lightweight","scratch"],
-    "Software & OS":  ["ios","macos","software","update","bug","crash","glitch","ui","ux","icloud"],
-    "Audio":          ["audio","sound","speaker","bass","microphone","mic","call quality"],
-    "Connectivity":   ["wifi","bluetooth","network","5g","signal","connectivity","hotspot"],
-    "Storage":        ["storage","memory","ram","128gb","256gb","512gb","1tb"],
-    "Price":          ["price","cost","expensive","overpriced","cheap","value","worth"],
-    "Heating":        ["heat","heating","hot","overheats","thermal"],
-}
+# MFG_ASPECT_KEYWORDS is imported from aspect_extraction above
 MFG_FILLER = {"lol","ok","k","plz","xd","ha","haha","hmm"}
 
 # --- Data Loading ---
@@ -289,6 +304,8 @@ MFG_FILLER = {"lol","ok","k","plz","xd","ha","haha","hmm"}
 def load_data():
     try:
         df = pd.read_csv('outputs/sentiment_output.csv')
+        # The unified output IS the ABSA data now. For backward compat with
+        # pages that expect a separate absa_df, also load the training dataset.
         absa_df = pd.read_csv('outputs/absa_training_dataset.csv') if os.path.exists('outputs/absa_training_dataset.csv') else pd.DataFrame()
         return df, absa_df
     except FileNotFoundError:
@@ -535,9 +552,9 @@ def render_bi_dashboard():
         for rec in recs:
             st.markdown(
                 f"""
-                <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; margin-bottom: 10px; border-left: 5px solid #007AFF;">
-                    <h4 style="margin:0; color: #1D1D1F;">{rec.get('title', 'Recommendation')}</h4>
-                    <p style="margin-top: 5px; color: #424245;">{rec.get('description', '')}</p>
+                <div class="theme-card" style="border-left: 4px solid #007AFF;">
+                    <h4 style="margin:0; color: var(--text-primary);">{rec.get('title', 'Recommendation')}</h4>
+                    <p style="margin-top: 5px; color: var(--text-secondary);">{rec.get('description', '')}</p>
                     <p style="font-size: 0.9em; color: #007AFF; margin-bottom: 0;"><b>Expected Impact:</b> {rec.get('expected_impact', '')}</p>
                 </div>
                 """, 
@@ -593,7 +610,7 @@ def render_overview():
     with col2:
         st.image("assets/apple_logo.png", width=100)
         
-    st.markdown("<div style='text-align: center; padding-bottom: 40px;'><h1>Apple Sentiment Analysis</h1><p style='color: #86868B; font-size: 1.2rem;'>Decoding customer perception with fine-tuned Transformers.</p></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; padding-bottom: 40px;'><h1>Apple Sentiment Analysis</h1><p style='color: var(--text-muted); font-size: 1.2rem;'>Decoding customer perception with fine-tuned Transformers.</p></div>", unsafe_allow_html=True)
 
     col1, col2 = st.columns([1, 1], gap="large")
 
@@ -609,9 +626,9 @@ def render_overview():
         """)
         
         # --- Live Metrics Extraction ---
-        acc_str = "91.5"
-        f1_str = "0.915"
-        prec_str = "0.916"
+        acc_str = "88.4"
+        f1_str = "0.883"
+        prec_str = "0.883"
         try:
             import json, os
             metrics_path = "outputs/fine_tuned_absa_model/metrics.json"
@@ -620,8 +637,8 @@ def render_overview():
                     metrics = json.load(f)
                     if "eval_accuracy" in metrics:
                         acc_str = f"{metrics['eval_accuracy'] * 100:.1f}"
-                        f1_str = f"{metrics.get('eval_f1', 0.915):.3f}"
-                        prec_str = f"{metrics.get('eval_precision', 0.916):.3f}"
+                        f1_str = f"{metrics.get('eval_f1', 0.883):.3f}"
+                        prec_str = f"{metrics.get('eval_precision', 0.883):.3f}"
         except Exception:
             pass
         # -------------------------------
@@ -644,20 +661,20 @@ def render_overview():
         st.graphviz_chart("""
             digraph {
                 rankdir="TB";
-                node [shape=box, style="filled,rounded", fillcolor="#ffffff", fontname="sans-serif", penwidth=0];
+                node [shape=box, style="filled,rounded", fillcolor="#1e293b", fontcolor="#F5F5F7", fontname="Inter", penwidth=0];
                 edge [color="#8E8E93"];
                 bgcolor="transparent";
                 
                 A [label="Raw Reviews"];
                 B [label="Preprocessing"];
-                C [label="Aspect Extraction", shape=diamond, fillcolor="#e3f2fd"];
-                D [label="DeBERTa Model", fillcolor="#e8f5e9"];
+                C [label="Aspect Extraction", shape=diamond, fillcolor="#1e3a5f", fontcolor="#60a5fa"];
+                D [label="DeBERTa Model", fillcolor="#1a3a2a", fontcolor="#34C759"];
                 E [label="Sentiment Score"];
                 F [label="Dashboard"];
 
                 A -> B;
                 B -> C;
-                C -> D [label="Input"];
+                C -> D [label="Input", fontcolor="#8E8E93"];
                 D -> E;
                 E -> F;
             }
@@ -675,43 +692,62 @@ def render_overview():
 def render_dashboard(df, absa_df):
     st.markdown("## 📊 Live Analytics Dashboard")
 
-    # Filter by Model (Restored Feature)
+    # Filter by Model
     if 'model' in df.columns:
         model_list = ['All'] + sorted(df['model'].dropna().unique().tolist())
         selected_model = st.selectbox("Select Model Source", model_list)
-        
+
         if selected_model != 'All':
             df = df[df['model'] == selected_model]
-            # Filter ABSA data too if it has model info, otherwise leave it or filter loosely
             if 'model_name' in absa_df.columns:
                  absa_df = absa_df[absa_df['model_name'] == selected_model]
-    
-    # 1. Top Level Metrics
-    total_reviews = len(df)
-    avg_rating = df['sentiment_score'].mean()
-    pos_pct = (df['sentiment_label'] == 'Positive').mean() * 100
-    neg_pct = (df['sentiment_label'] == 'Negative').mean() * 100
+
+    # 1. Top Level Metrics — unique reviews via review_id
+    if 'review_id' in df.columns:
+        # Compute numerical weighted score sentiment per review for review-level stats
+        def _dominant_sentiment(group):
+            """Pick the label with the highest cumulative confidence mass."""
+            bucket = {"Positive": 0.0, "Negative": 0.0, "Neutral": 0.0}
+            for label, conf in zip(group['sentiment_label'], group['confidence']):
+                c = float(conf) if pd.notna(conf) else 1.0
+                if label in bucket:
+                    bucket[label] += c
+            return max(bucket, key=bucket.get)
+
+        review_sentiments = df.groupby('review_id').apply(_dominant_sentiment)
+        total_reviews = review_sentiments.nunique() if hasattr(review_sentiments, 'nunique') else len(review_sentiments)
+        total_reviews = len(review_sentiments)
+        pos_pct = (review_sentiments == 'Positive').mean() * 100
+        neg_pct = (review_sentiments == 'Negative').mean() * 100
+        avg_conf = df['confidence'].mean() if 'confidence' in df.columns else 0.0
+    else:
+        # Fallback for old-format data
+        total_reviews = len(df)
+        pos_pct = (df['sentiment_label'] == 'Positive').mean() * 100
+        neg_pct = (df['sentiment_label'] == 'Negative').mean() * 100
+        avg_conf = 0.0
+        review_sentiments = df['sentiment_label']
 
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Reviews", f"{total_reviews:,}")
-    c2.metric("Average Rating", f"{avg_rating:.1f} ★")
+    c2.metric("Avg Confidence", f"{avg_conf:.1%}")
     c3.metric("Positive Sentiment", f"{pos_pct:.1f}%", delta_color="normal")
     c4.metric("Negative Sentiment", f"{neg_pct:.1f}%", delta_color="inverse")
-    
+
     st.divider()
 
     # 2. Charts Row 1
     col1, col2 = st.columns([1, 1])
-    
+
     with col1:
         st.subheader("Sentiment Distribution")
-        # Custom Donut Chart
-        sentiment_counts = df['sentiment_label'].value_counts().reset_index()
-        sentiment_counts.columns = ['Label', 'Count']
-        
+        # Review-level donut
+        sent_counts = review_sentiments.value_counts().reset_index()
+        sent_counts.columns = ['Label', 'Count']
+
         fig_donut = px.pie(
-            sentiment_counts, 
-            values='Count', 
+            sent_counts,
+            values='Count',
             names='Label',
             color='Label',
             color_discrete_map={'Positive': COLORS['positive'], 'Negative': COLORS['negative'], 'Neutral': COLORS['neutral']},
@@ -721,52 +757,58 @@ def render_dashboard(df, absa_df):
         st.plotly_chart(fig_donut, width="stretch")
 
     with col2:
-        st.subheader("Rating Trends")
-        star_counts = df['sentiment_score'].value_counts().sort_index().reset_index()
-        star_counts.columns = ['Stars', 'Count']
-        
-        fig_bar = px.bar(
-            star_counts, 
-            x='Stars', 
-            y='Count',
-            text_auto=True,
-            color_discrete_sequence=[COLORS['primary']]
-        )
-        fig_bar.update_layout(xaxis_type='category', margin=dict(t=0, b=0, l=0, r=0), plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_bar, width="stretch")
+        st.subheader("Aspect Frequency")
+        # Show which aspects are discussed most (excluding General)
+        if 'aspect' in df.columns:
+            asp_counts = df[df['aspect'] != 'General']['aspect'].value_counts().head(10).reset_index()
+            asp_counts.columns = ['Aspect', 'Count']
 
-    # 3. ABSA Section
-    if not absa_df.empty:
+            fig_bar = px.bar(
+                asp_counts,
+                x='Count',
+                y='Aspect',
+                orientation='h',
+                text_auto=True,
+                color_discrete_sequence=[COLORS['primary']]
+            )
+            fig_bar.update_layout(margin=dict(t=0, b=0, l=0, r=0), plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_bar, width="stretch")
+        else:
+            st.info("No aspect data available.")
+
+    # 3. ABSA Section — now reads directly from the unified df
+    if 'aspect' in df.columns:
         st.divider()
-        st.subheader("💡 Aspect Analysis (What people are talking about)")
-        
-        # Aggregate sentiment by aspect
-        aspect_sentiment = pd.crosstab(absa_df['aspect'], absa_df['label'], normalize='index') * 100
-        aspect_sentiment = aspect_sentiment.reset_index()
-        
-        # Sort by aspect frequency to show most relevant first
-        aspect_counts = absa_df['aspect'].value_counts().head(8).index
-        aspect_sentiment = aspect_sentiment[aspect_sentiment['aspect'].isin(aspect_counts)]
+        st.subheader("💡 Aspect Sentiment Analysis")
 
-        fig_absa = go.Figure()
-        for label, color in [('Negative', COLORS['negative']), ('Neutral', COLORS['neutral']), ('Positive', COLORS['positive'])]:
-            if label in aspect_sentiment.columns:
-                fig_absa.add_trace(go.Bar(
-                    y=aspect_sentiment['aspect'],
-                    x=aspect_sentiment[label],
-                    name=label,
-                    orientation='h',
-                    marker_color=color
-                ))
+        aspect_data = df[df['aspect'] != 'General']
+        if not aspect_data.empty:
+            aspect_sentiment = pd.crosstab(aspect_data['aspect'], aspect_data['sentiment_label'], normalize='index') * 100
+            aspect_sentiment = aspect_sentiment.reset_index()
 
-        fig_absa.update_layout(
-            barmode='stack', 
-            title="Sentiment per Feature (Top 8)",
-            xaxis_title="Percentage %",
-            plot_bgcolor='rgba(0,0,0,0)',
-            height=400
-        )
-        st.plotly_chart(fig_absa, width="stretch")
+            # Sort by frequency, keep top 8
+            top_aspects = aspect_data['aspect'].value_counts().head(8).index
+            aspect_sentiment = aspect_sentiment[aspect_sentiment['aspect'].isin(top_aspects)]
+
+            fig_absa = go.Figure()
+            for label, color in [('Negative', COLORS['negative']), ('Neutral', COLORS['neutral']), ('Positive', COLORS['positive'])]:
+                if label in aspect_sentiment.columns:
+                    fig_absa.add_trace(go.Bar(
+                        y=aspect_sentiment['aspect'],
+                        x=aspect_sentiment[label],
+                        name=label,
+                        orientation='h',
+                        marker_color=color
+                    ))
+
+            fig_absa.update_layout(
+                barmode='stack',
+                title="Sentiment per Feature (Top 8)",
+                xaxis_title="Percentage %",
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=400
+            )
+            st.plotly_chart(fig_absa, width="stretch")
 
 # --- Page: Playground ---
 def render_playground():
@@ -782,9 +824,23 @@ def render_playground():
         return
 
     try:
-        HF_MODEL_NAME = "unknownexplosion/SentimentAnalysisog"
+        HF_MODEL_NAME = "unknownexplosion/SentimentABSA-v3"
         st.sidebar.info(f"Model: {HF_MODEL_NAME} (Hugging Face)")
         final_model_name = HF_MODEL_NAME
+
+        # Programmatically patch tokenizer config to avoid Hugging Face transformers keys bug
+        try:
+            from huggingface_hub import hf_hub_download
+            import json
+            config_path = hf_hub_download(repo_id=final_model_name, filename="tokenizer_config.json")
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            if isinstance(config.get("extra_special_tokens"), list):
+                config["extra_special_tokens"] = {}
+                with open(config_path, 'w') as f:
+                    json.dump(config, f, indent=2)
+        except Exception as patch_err:
+            pass
 
         with st.spinner("Loading sentiment model..."):
             # forcing device=-1 (CPU) avoids "meta tensor" errors on Mac/Accelerate
@@ -810,42 +866,43 @@ def render_playground():
         else:
             with st.spinner("Analyzing review..."):
                 try:
+                    # ---- Clean the input text first ----
+                    cleaned_input = _mfg_clean_text(user_input)
+                    if not cleaned_input.strip():
+                        st.warning("After cleaning, no meaningful text remains.")
+                        return
+
                     # ---- Overall sentiment ----
-                    overall_result = classifier(user_input)[0]
-                    raw_label = overall_result["label"]
-                    score = overall_result["score"]
-                    display_label, color = _map_label_to_display(raw_label)
+                    overall_label, overall_conf = run_aspect_sentiment(cleaned_input, "General", classifier)
+                    display_label, color = _map_label_to_display(overall_label)
+                    score = overall_conf
 
                     # ---- Clause-level analysis ----
-                    clauses = _split_into_clauses(user_input)
                     clause_rows = []
 
-                    for c in clauses:
-                        r = classifier(c)[0]
-                        disp_label, _ = _map_label_to_display(r["label"])
-                        aspect = _detect_aspect(c)
-                        clause_rows.append({
-                            "Clause": c,
-                            "Aspect": aspect,
-                            "Raw Label": r["label"],
-                            "Sentiment": disp_label,
-                            "Confidence": round(r["score"], 4),
-                        })
+                    for clause, parent_sentence in _split_into_sentences_with_parents(cleaned_input):
+                        aspects = detect_all_aspects(clause)
+                        if not aspects:
+                            aspects = ["General"]
+                        for aspect in aspects:
+                            s_label, s_conf = run_aspect_sentiment(clause, aspect, classifier)
+                            clause_rows.append({
+                                "Sentence": parent_sentence,
+                                "Clause": clause,
+                                "Aspect": aspect,
+                                "Sentiment": s_label,
+                                "Confidence": s_conf,
+                            })
 
                     clause_df = pd.DataFrame(clause_rows)
 
                     # ---- Nice overall card ----
                     st.markdown(f"""
-                    <div style="
-                        background-color: {color}20;
-                        padding: 20px;
-                        border-radius: 12px;
-                        border: 2px solid {color};
-                        text-align: center;
-                        margin-top: 20px;">
+                    <div class="sentiment-card" style="
+                        background-color: {color}15;
+                        border-color: {color};">
                         <h3 style="color: {color}; margin:0;">Overall Sentiment: {display_label}</h3>
-                        <p style="margin:0; font-weight:bold;">Confidence: {score:.2%}</p>
-                        <p style="margin-top:8px; color:#555;">Model raw label: {raw_label}</p>
+                        <p style="margin:0; font-weight:bold; color: var(--text-primary);">Confidence: {score:.2%}</p>
                     </div>
                     """, unsafe_allow_html=True)
 
@@ -914,43 +971,49 @@ def render_playground():
                     for idx, row in df.iterrows():
                         text = str(row[review_column])
                         if not text or not text.strip():
-                            overall_sentiments.append({"index": idx, "overall_raw": None,
+                            overall_sentiments.append({"index": idx,
+                                                       "overall_sentiment": None,
+                                                       "overall_confidence": None})
+                            continue
+
+                        # Clean text before analysis (removes URLs, emojis, etc.)
+                        text = _mfg_clean_text(text)
+                        if not text.strip():
+                            overall_sentiments.append({"index": idx,
                                                        "overall_sentiment": None,
                                                        "overall_confidence": None})
                             continue
 
                         # Overall sentiment per review
-                        overall_res = classifier(text)[0]
-                        o_disp, _ = _map_label_to_display(overall_res["label"])
+                        o_label, o_conf = run_aspect_sentiment(text, "General", classifier)
                         overall_sentiments.append({
                             "index": idx,
-                            "overall_raw": overall_res["label"],
-                            "overall_sentiment": o_disp,
-                            "overall_confidence": round(overall_res["score"], 4),
+                            "overall_sentiment": o_label,
+                            "overall_confidence": o_conf,
                         })
 
                         # Clause-level ABSA
                         clauses = _split_into_clauses(text)
                         for c in clauses:
-                            if not c.strip():
+                            if not c.strip() or len(c.split()) < 3:
                                 continue
-                            r = classifier(c)[0]
-                            disp_label, _ = _map_label_to_display(r["label"])
-                            aspect = _detect_aspect(c)
+                            aspects = detect_all_aspects(c)
+                            if not aspects:
+                                aspects = ["General"]
+                            for aspect in aspects:
+                                s_label, s_conf = run_aspect_sentiment(c, aspect, classifier)
 
-                            aspect_rows.append({
-                                "review_index": idx,
-                                "review_text": text,
-                                "clause": c,
-                                "aspect": aspect,
-                                "sentiment": disp_label,
-                                "raw_label": r["label"],
-                                "confidence": round(r["score"], 4),
-                            })
+                                aspect_rows.append({
+                                    "review_index": idx,
+                                    "review_text": text,
+                                    "clause": c,
+                                    "aspect": aspect,
+                                    "sentiment": s_label,
+                                    "confidence": s_conf,
+                                })
 
                     # Merge overall sentiment back to df
                     overall_df = pd.DataFrame(overall_sentiments).set_index("index")
-                    df["overall_raw"] = df.index.map(overall_df["overall_raw"])
                     df["overall_sentiment"] = df.index.map(overall_df["overall_sentiment"])
                     df["overall_confidence"] = df.index.map(overall_df["overall_confidence"])
 
@@ -1051,7 +1114,7 @@ def render_report():
         st.markdown("""
         <style>
         .report-text {
-            color: #1D1D1F !important;
+            color: var(--text-primary) !important;
         }
         </style>
         """, unsafe_allow_html=True)
@@ -1070,10 +1133,13 @@ def _mfg_clean_text(text: str) -> str:
         return ""
     text = re.sub(r'http\S+|www\.\S+', '', text)
     text = re.sub(r'<.*?>', '', text)
-    text = re.sub(r'[^\w\s,.]', '', text)
+    # Collapse repeated punctuation BEFORE stripping symbols
+    # so "!!!" → "!" (preserving the sentence boundary marker)
+    text = re.sub(r'([!?.:])\1+', r'\1', text)
+    # Remove emojis/symbols but KEEP ! and ? (needed for sentence splitting)
+    text = re.sub(r'[^\w\s,.!?]', '', text)
     text = re.sub(r'[\n\t\r]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
-    text = re.sub(r'([!?.:])\1+', r'\1', text)
     return text
 
 def _mfg_is_meaningless(text: str) -> bool:
@@ -1100,13 +1166,8 @@ def _mfg_translate(text: str) -> str:
     return text
 
 def _mfg_detect_aspect(text: str) -> str:
-    t = text.lower()
-    best, best_score = "Other", 0
-    for aspect, kws in MFG_ASPECT_KEYWORDS.items():
-        score = sum(1 for kw in kws if kw in t)
-        if score > best_score:
-            best_score, best = score, aspect
-    return best
+    """Aspect detector — delegates to the shared aspect_extraction module."""
+    return detect_aspect(text)
 
 def _mfg_map_label(raw: str) -> str:
     u = raw.upper()
@@ -1115,8 +1176,8 @@ def _mfg_map_label(raw: str) -> str:
     return "Neutral"
 
 def _mfg_split_clauses(text: str):
-    parts = re.split(r'(?i)\bbut\b|\bhowever\b|\bthough\b|[.!?]', text)
-    return [p.strip() for p in parts if p.strip()]
+    """Clause splitter — delegates to the shared spaCy-based splitter."""
+    return split_into_sentences(text)
 
 @st.cache_resource(show_spinner=False)
 def _mfg_load_classifier():
@@ -1124,7 +1185,7 @@ def _mfg_load_classifier():
         return None
     return pipeline(
         "sentiment-analysis",
-        model="unknownexplosion/SentimentAnalysisog",
+        model="unknownexplosion/SentimentABSA-v3",
         device=-1,
         model_kwargs={"low_cpu_mem_usage": False},
     )
@@ -1173,7 +1234,7 @@ def _mfg_run_pipeline(raw_df, model_col, review_col, date_col, progress_bar, sta
     clf = _mfg_load_classifier()
     valid_mask = df["final"].notna() & (df["final"] != "")
     valid_texts = df.loc[valid_mask, "final"].tolist()
-    sentiments = _mfg_run_sentiment(valid_texts, clf)
+    sentiments = [run_aspect_sentiment(t, "General", clf) for t in valid_texts]
     df.loc[valid_mask, "sentiment_label"]      = [s[0] for s in sentiments]
     df.loc[valid_mask, "sentiment_confidence"] = [s[1] for s in sentiments]
 
@@ -1182,48 +1243,23 @@ def _mfg_run_pipeline(raw_df, model_col, review_col, date_col, progress_bar, sta
     absa_rows = []
 
     if SPACY_AVAILABLE:
-        # Build a flat keyword → canonical aspect name lookup (from MFG_ASPECT_KEYWORDS)
-        _kw_to_aspect = {}
-        for _asp, _kws in MFG_ASPECT_KEYWORDS.items():
-            for _kw in _kws:
-                if _kw not in _kw_to_aspect:   # first definition wins
-                    _kw_to_aspect[_kw] = _asp
-
         for _, row in df[valid_mask].iterrows():
             text  = row["final"]
             model = row["model"]
-            doc   = _spacy_nlp(text)
 
-            for sent in doc.sents:
-                sent_text = sent.text.strip()
+            for sent_text in split_into_sentences(text):
                 if not sent_text:
                     continue
-                t_lower = sent_text.lower()
 
                 # Find every aspect whose keywords appear in this sentence
-                matched = {}
-                for kw, asp in _kw_to_aspect.items():
-                    if kw in t_lower and asp not in matched:
-                        matched[asp] = True
+                matched_aspects = detect_all_aspects(sent_text)
 
-                if not matched:
+                if not matched_aspects:
                     continue  # sentence mentions no tracked aspect → skip
 
-                # Run the sentiment model ONCE per sentence (not per aspect)
-                if clf:
-                    try:
-                        res     = clf([sent_text], truncation=True, max_length=512)[0]
-                        s_label = _mfg_map_label(res["label"])
-                        s_conf  = round(res["score"], 4)
-                    except Exception:
-                        s_label = row.get("sentiment_label", "Neutral") or "Neutral"
-                        s_conf  = 0.5
-                else:
-                    s_label = row.get("sentiment_label", "Neutral") or "Neutral"
-                    s_conf  = 0.5
-
-                # Emit one row per (sentence, aspect) pair
-                for asp in matched:
+                # Run aspect-conditioned sentiment for EACH aspect
+                for asp in matched_aspects:
+                    s_label, s_conf = run_aspect_sentiment(sent_text, asp, clf)
                     absa_rows.append({
                         "model":      model,
                         "text":       sent_text,
@@ -1232,24 +1268,24 @@ def _mfg_run_pipeline(raw_df, model_col, review_col, date_col, progress_bar, sta
                         "confidence": s_conf,
                     })
     else:
-        # ── Fallback: original clause-split + keyword matching ──────────────
+        # ── Fallback: clause-split + keyword matching ──────────────
         for _, row in df[valid_mask].iterrows():
             text    = row["final"]
             model   = row["model"]
             clauses = _mfg_split_clauses(text) or [text]
-            c_results = (
-                _mfg_run_sentiment(clauses, clf)
-                if clf
-                else [(row.get("sentiment_label", "Neutral") or "Neutral", 0.5)] * len(clauses)
-            )
-            for clause, (s_label, s_conf) in zip(clauses, c_results):
-                absa_rows.append({
-                    "model":      model,
-                    "text":       clause,
-                    "aspect":     _mfg_detect_aspect(clause),
-                    "label":      s_label,
-                    "confidence": s_conf,
-                })
+            for clause in clauses:
+                aspects = detect_all_aspects(clause)
+                if not aspects:
+                    aspects = ["General"]
+                for aspect in aspects:
+                    s_label, s_conf = run_aspect_sentiment(clause, aspect, clf)
+                    absa_rows.append({
+                        "model":      model,
+                        "text":       clause,
+                        "aspect":     aspect,
+                        "label":      s_label,
+                        "confidence": s_conf,
+                    })
 
     if date_col and "date" in df.columns:
         try:
@@ -1384,11 +1420,38 @@ def _mfg_kpi_cards(df, absa_df, model):
     neg_p = round((valid["sentiment_label"]=="Negative").mean()*100,1) if len(valid) else 0
     m_absa = absa_df[absa_df["model"]==model]
     top_pos_asp = top_neg_asp = "—"
+    
     if not m_absa.empty:
-        pos_asp = m_absa[m_absa["label"]=="Positive"]["aspect"].value_counts()
-        neg_asp = m_absa[m_absa["label"]=="Negative"]["aspect"].value_counts()
-        top_pos_asp = pos_asp.idxmax() if not pos_asp.empty else "—"
-        top_neg_asp = neg_asp.idxmax() if not neg_asp.empty else "—"
+        # Filter out 'General' and 'Other' for specific insights
+        filtered_absa = m_absa[~m_absa["aspect"].isin(["General", "Other"])]
+        
+        if not filtered_absa.empty:
+            # Group by aspect and calculate label percentages
+            asp_stats = filtered_absa.groupby("aspect")["label"].value_counts(normalize=True).unstack(fill_value=0)
+            asp_counts = filtered_absa["aspect"].value_counts()
+            
+            # Top Strength: Highest POSITIVE ratio among aspects with >= 3 mentions
+            if "Positive" in asp_stats.columns:
+                pos_candidates = asp_stats[asp_counts >= 3]["Positive"]
+                if not pos_candidates.empty:
+                    top_pos_asp = pos_candidates.idxmax()
+            
+            # Top Issue: Highest NEGATIVE ratio among aspects with >= 2 mentions
+            if "Negative" in asp_stats.columns:
+                neg_candidates = asp_stats[asp_counts >= 2]["Negative"]
+                if not neg_candidates.empty:
+                    top_neg_asp = neg_candidates.idxmax()
+                    
+                    # Safety check: if the "Top Issue" is highly positive (e.g., less than 5% negative),
+                    # show the one with the highest raw negative count if ratio is too low.
+                    if neg_candidates.max() < 0.05:
+                        raw_neg = filtered_absa[filtered_absa["label"] == "Negative"]["aspect"].value_counts()
+                        if not raw_neg.empty:
+                            top_neg_asp = raw_neg.idxmax()
+        else:
+            top_pos_asp = "General"
+            top_neg_asp = "General"
+
     c1,c2,c3,c4,c5 = st.columns(5)
     cards = [
         (c1,"📦 Total Reviews",f"{total:,}","analysed"),

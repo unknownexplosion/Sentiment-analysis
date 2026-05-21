@@ -5,6 +5,7 @@ End-to-end standalone Streamlit app.
 Run: streamlit run manufacturer_dashboard.py
 """
 
+import patch_transformers
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -186,23 +187,16 @@ PLOTLY_LAYOUT = dict(
 )
 GRID_STYLE = dict(gridcolor="rgba(255,255,255,0.06)", zerolinecolor="rgba(255,255,255,0.06)")
 
-ASPECT_KEYWORDS = {
-    "Camera":          ["camera","photo","picture","image quality","selfie","lens","sensor","night mode","clarity"],
-    "Battery":         ["battery","battery life","charge","charging","drains","power","sot"],
-    "Performance":     ["performance","speed","lag","slow","fast","smooth","chip","gpu","cpu","processor","freeze","hang"],
-    "Display":         ["display","screen","oled","brightness","resolution","refresh rate","retina","120hz"],
-    "Design & Build":  ["design","build","material","durability","sleek","thin","lightweight","scratch","aesthetics"],
-    "Software & OS":   ["ios","macos","software","update","bug","crash","glitch","ui","ux","icloud"],
-    "Audio":           ["audio","sound","speaker","bass","microphone","mic","call quality"],
-    "Connectivity":    ["wifi","bluetooth","network","5g","signal","connectivity","hotspot"],
-    "Storage":         ["storage","memory","ram","128gb","256gb","512gb","1tb"],
-    "Price":           ["price","cost","expensive","overpriced","cheap","value","worth"],
-    "Heating":         ["heat","heating","hot","overheats","thermal"],
-}
+# Unified aspect extraction (shared across project)
+from aspect_extraction import (
+    split_into_sentences, detect_aspect as _shared_detect_aspect,
+    detect_all_aspects, run_aspect_sentiment, map_sentiment_label,
+    ASPECT_KEYWORDS,
+)
 
 FILLER_WORDS = {"lol","ok","k","plz","xd","ha","haha","hmm"}
 
-HF_MODEL_NAME = "unknownexplosion/SentimentAnalysisog"
+HF_MODEL_NAME = "unknownexplosion/SentimentABSA-v3"
 
 # ────────────────────────────────────────────────────────────────────────────
 # SECRETS
@@ -226,10 +220,13 @@ def clean_text(text: str) -> str:
         return ""
     text = re.sub(r'http\S+|www\.\S+', '', text)
     text = re.sub(r'<.*?>', '', text)
-    text = re.sub(r'[^\w\s,.]', '', text)
+    # Collapse repeated punctuation BEFORE stripping symbols
+    # so "!!!" → "!" (preserving the sentence boundary marker)
+    text = re.sub(r'([!?.:])\1+', r'\1', text)
+    # Remove emojis/symbols but KEEP ! and ? (needed for sentence splitting)
+    text = re.sub(r'[^\w\s,.!?]', '', text)
     text = re.sub(r'[\n\t\r]', ' ', text)
     text = re.sub(r'\s+', ' ', text).strip()
-    text = re.sub(r'([!?.:])\1+', r'\1', text)
     return text
 
 def is_meaningless(text: str) -> bool:
@@ -259,25 +256,34 @@ def translate_text(text: str) -> str:
     return text
 
 def detect_aspect(text: str) -> str:
-    t = text.lower()
-    best, best_score = "Other", 0
-    for aspect, kws in ASPECT_KEYWORDS.items():
-        score = sum(1 for kw in kws if kw in t)
-        if score > best_score:
-            best_score, best = score, aspect
-    return best
+    """Aspect detector — delegates to the shared aspect_extraction module."""
+    return _shared_detect_aspect(text)
 
 def map_label(raw_label: str) -> str:
-    u = raw_label.upper()
-    if any(x in u for x in ["5", "4", "POS", "POSITIVE"]):
+    """
+    Normalize raw model labels. 
+    Crucial: Avoid mapping 'LABEL_1' (Neutral) or 'LABEL_2' (Positive) to Negative 
+    just because they contain the characters '1' or '2'.
+    """
+    u = str(raw_label).upper().strip()
+    
+    # Exact matches for speed and accuracy
+    if u in ["POSITIVE", "POS", "LABEL_2", "5", "4", "5 STARS", "4 STARS"]:
         return "Positive"
-    if any(x in u for x in ["1", "2", "NEG", "NEGATIVE"]):
+    if u in ["NEGATIVE", "NEG", "LABEL_0", "1", "2", "1 STAR", "2 STARS"]:
         return "Negative"
+    if u in ["NEUTRAL", "NEU", "LABEL_1", "3", "3 STARS"]:
+        return "Neutral"
+        
+    # Substring fallbacks
+    if "POSITIVE" in u or "POS" in u: return "Positive"
+    if "NEGATIVE" in u or "NEG" in u: return "Negative"
+    
     return "Neutral"
 
 def split_into_clauses(text: str):
-    parts = re.split(r'(?i)\bbut\b|\bhowever\b|\bthough\b|[.!?]', text)
-    return [p.strip() for p in parts if p.strip()]
+    """Clause splitter — delegates to the shared spaCy-based splitter."""
+    return split_into_sentences(text)
 
 @st.cache_resource(show_spinner=False)
 def load_classifier():
@@ -347,7 +353,7 @@ def run_full_pipeline(df_raw: pd.DataFrame, model_col: str, review_col: str, dat
     valid_mask = df["final"].notna() & (df["final"] != "")
     valid_texts = df.loc[valid_mask, "final"].tolist()
 
-    sentiments = run_sentiment(valid_texts, classifier)
+    sentiments = [run_aspect_sentiment(t, "General", classifier) for t in valid_texts]
     df.loc[valid_mask, "sentiment_label"]      = [s[0] for s in sentiments]
     df.loc[valid_mask, "sentiment_confidence"] = [s[1] for s in sentiments]
 
@@ -362,23 +368,22 @@ def run_full_pipeline(df_raw: pd.DataFrame, model_col: str, review_col: str, dat
         clauses = split_into_clauses(text)
         if not clauses:
             clauses = [text]
-        if classifier is not None:
-            try:
-                clause_results = run_sentiment(clauses, classifier)
-            except Exception:
-                clause_results = [(row.get("sentiment_label", "Neutral"), 0.5)] * len(clauses)
-        else:
-            clause_results = [(row.get("sentiment_label", "Neutral"), 0.5)] * len(clauses)
 
-        for clause, (s_label, s_conf) in zip(clauses, clause_results):
-            aspect = detect_aspect(clause)
-            absa_rows.append({
-                "model":      model,
-                "text":       clause,
-                "aspect":     aspect,
-                "label":      s_label,
-                "confidence": s_conf,
-            })
+        for clause in clauses:
+            # FIX: Use detect_all_aspects to handle multiple aspects in one clause
+            aspects = detect_all_aspects(clause)
+            if not aspects:
+                aspects = ["General"]
+                
+            for aspect in aspects:
+                s_label, s_conf = run_aspect_sentiment(clause, aspect, classifier)
+                absa_rows.append({
+                    "model":      model,
+                    "text":       clause,
+                    "aspect":     aspect,
+                    "label":      s_label,
+                    "confidence": s_conf,
+                })
 
     # Synthetic weekly buckets if no date supplied
     if date_col and "date" in df.columns:
@@ -569,14 +574,43 @@ def render_kpi_cards(df: pd.DataFrame, absa_df: pd.DataFrame, model: str):
     neg_p  = round((valid["sentiment_label"] == "Negative").mean() * 100, 1) if len(valid) else 0
     conf   = round(valid["sentiment_confidence"].mean() * 100, 1) if "sentiment_confidence" in valid and len(valid) else 0
 
-    # Top aspects
+    # Top aspects (Improved logic: use ratios to avoid count bias)
     m_absa = absa_df[absa_df["model"] == model]
     top_pos_asp = top_neg_asp = "—"
+    
     if not m_absa.empty:
-        pos_asp = m_absa[m_absa["label"] == "Positive"]["aspect"].value_counts()
-        neg_asp = m_absa[m_absa["label"] == "Negative"]["aspect"].value_counts()
-        top_pos_asp = pos_asp.idxmax() if not pos_asp.empty else "—"
-        top_neg_asp = neg_asp.idxmax() if not neg_asp.empty else "—"
+        # 1. Filter out 'General' and 'Other' for specific insights
+        filtered_absa = m_absa[~m_absa["aspect"].isin(["General", "Other"])]
+        
+        if not filtered_absa.empty:
+            # Group by aspect and calculate label percentages
+            asp_stats = filtered_absa.groupby("aspect")["label"].value_counts(normalize=True).unstack(fill_value=0)
+            asp_counts = filtered_absa["aspect"].value_counts()
+            
+            # Top Strength: Highest POSITIVE ratio among aspects with >= 3 mentions
+            if "Positive" in asp_stats.columns:
+                pos_candidates = asp_stats[asp_counts >= 3]["Positive"]
+                if not pos_candidates.empty:
+                    top_pos_asp = pos_candidates.idxmax()
+            
+            # Top Issue: Highest NEGATIVE ratio among aspects with >= 2 mentions
+            if "Negative" in asp_stats.columns:
+                neg_candidates = asp_stats[asp_counts >= 2]["Negative"]
+                if not neg_candidates.empty:
+                    # We also want to make sure it's actually an "issue" (e.g., > 10% negative)
+                    # or at least the most problematic one.
+                    top_neg_asp = neg_candidates.idxmax()
+                    
+                    # Safety check: if the "Top Issue" is 90% positive, it's not really an issue.
+                    # In that case, show the one with highest raw negative count if ratio is too low.
+                    if neg_candidates.max() < 0.05: # less than 5% negative
+                         raw_neg = filtered_absa[filtered_absa["label"] == "Negative"]["aspect"].value_counts()
+                         if not raw_neg.empty:
+                             top_neg_asp = raw_neg.idxmax()
+        else:
+            # Fallback to General if no specific aspects found
+            top_pos_asp = "General"
+            top_neg_asp = "General"
 
     c1, c2, c3, c4, c5 = st.columns(5)
     cards = [
