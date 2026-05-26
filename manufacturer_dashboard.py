@@ -719,14 +719,30 @@ def generate_textual_feedback(df: pd.DataFrame, absa_df: pd.DataFrame, model: st
     strengths, issues = [], []
 
     if not m_absa.empty:
+        # Dynamic threshold: adapts to the product's overall sentiment profile
+        overall_pos_ratio = pos_p / 100.0
+        strength_threshold = max(0.35, min(overall_pos_ratio + 0.10, 0.60))
+        issue_threshold = max(0.25, min((neg_p / 100.0) + 0.10, 0.40))
+
+        aspect_pos_rates = []
         for asp in m_absa["aspect"].unique():
             asp_df = m_absa[m_absa["aspect"] == asp]
+            if len(asp_df) < 3:
+                continue
             pos = (asp_df["label"] == "Positive").mean()
             neg = (asp_df["label"] == "Negative").mean()
-            if pos >= 0.6:
+            aspect_pos_rates.append((asp, pos, neg))
+            if pos >= strength_threshold:
                 strengths.append((asp, round(pos * 100)))
-            elif neg >= 0.4:
+            if neg >= issue_threshold:
                 issues.append((asp, round(neg * 100)))
+
+        # Fallback: if no strengths found, pick top 3 aspects by positive rate
+        if not strengths and aspect_pos_rates:
+            sorted_by_pos = sorted(aspect_pos_rates, key=lambda x: -x[1])
+            for asp, pos, _ in sorted_by_pos[:3]:
+                if pos >= 0.30:
+                    strengths.append((asp, round(pos * 100)))
 
     strengths.sort(key=lambda x: -x[1])
     issues.sort(key=lambda x: -x[1])
